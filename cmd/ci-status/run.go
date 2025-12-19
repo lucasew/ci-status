@@ -55,10 +55,17 @@ func init() {
 func execute(cfg config.Config) error {
 	ctx := context.Background()
 
-	// 1. Detect Forge
-	forgeName, err := forge.DetectForge(cfg.Forge)
-	if err != nil && !cfg.Silent {
-		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+	// 1. Detect Forge Client
+	// This replaces the previous separate steps for Forge Name -> Repo Info -> New Client
+	client, err := forge.DetectClient(cfg.Forge)
+	if err != nil {
+		if !cfg.Silent {
+			// It's a warning, not necessarily a fatal error if we want noop mode?
+			// But DetectClient returns error if no supported forge found.
+			// Previous logic printed Warning and proceeded (client=nil).
+			fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+		}
+		client = nil
 	}
 
 	// 2. Detect Commit
@@ -67,23 +74,7 @@ func execute(cfg config.Config) error {
 		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
 	}
 
-	// 3. Initialize Client
-	var client forge.ForgeClient
-	if forgeName == "github" {
-		token := os.Getenv("GITHUB_TOKEN")
-		if token != "" {
-			owner, repo, err := forge.DetectRepoInfo()
-			if err == nil {
-				client = forge.NewGitHubClient(token, owner, repo)
-			} else if !cfg.Silent {
-				fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
-			}
-		} else if !cfg.Silent {
-            fmt.Fprintf(os.Stderr, "Warning: GITHUB_TOKEN not set\n")
-        }
-	}
-
-	// 4. Set Running Status
+	// 3. Set Running Status
 	if client != nil && commit != "" {
 		err := client.SetStatus(ctx, forge.StatusOpts{
 			Commit:      commit,

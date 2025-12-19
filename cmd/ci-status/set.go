@@ -47,10 +47,13 @@ func init() {
 func executeSet(cfg SetConfig) error {
 	ctx := context.Background()
 
-	// 1. Detect Forge
-	forgeName, err := forge.DetectForge(cfg.Forge)
-	if err != nil && !cfg.Silent {
-		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+	// 1. Detect Forge Client
+	client, err := forge.DetectClient(cfg.Forge)
+	if err != nil {
+		if !cfg.Silent {
+			fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+		}
+		client = nil
 	}
 
 	// 2. Detect Commit
@@ -59,23 +62,7 @@ func executeSet(cfg SetConfig) error {
 		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
 	}
 
-	// 3. Initialize Client
-	var client forge.ForgeClient
-	if forgeName == "github" {
-		token := os.Getenv("GITHUB_TOKEN")
-		if token != "" {
-			owner, repo, err := forge.DetectRepoInfo()
-			if err == nil {
-				client = forge.NewGitHubClient(token, owner, repo)
-			} else if !cfg.Silent {
-				fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
-			}
-		} else if !cfg.Silent {
-			fmt.Fprintf(os.Stderr, "Warning: GITHUB_TOKEN not set\n")
-		}
-	}
-
-	// 4. Set Status
+	// 3. Set Status
 	if client != nil && commit != "" {
 		err := client.SetStatus(ctx, forge.StatusOpts{
 			Commit:      commit,

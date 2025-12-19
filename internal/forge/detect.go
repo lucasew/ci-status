@@ -7,6 +7,70 @@ import (
 	"strings"
 )
 
+// DetectClient attempts to detect and initialize a ForgeClient based on the repository remote URL.
+// It iterates through available strategies (GitHub, Generic).
+func DetectClient(overrideForge string) (ForgeClient, error) {
+	// If forge is explicitly set to github, we try GitHub strategy only?
+	// The override logic in original code was checking "github" -> ParseGitHubRemote.
+
+	// First get the remote URL.
+	// For "GitHub" override, we still need the URL to get owner/repo unless we want to force something.
+	// But `DetectRepoInfo` previously did parsing.
+
+	originURL, err := getOriginURL()
+	if err != nil {
+		return nil, err
+	}
+
+	if overrideForge == "github" {
+		client := LoadGitHub(originURL)
+		if client != nil {
+			return client, nil
+		}
+		// If explicit override but failed to load (e.g. format mismatch), we might error out.
+		// But let's stick to the flow.
+	}
+
+	// Try strategies in order
+	strategies := []ForgeLoader{
+		LoadGitHub,
+		LoadGeneric,
+	}
+
+	for _, strategy := range strategies {
+		if client := strategy(originURL); client != nil {
+			return client, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no supported forge detected for url: %s", originURL)
+}
+
+func getOriginURL() (string, error) {
+	cmd := exec.Command("git", "remote", "get-url", "origin")
+	out, err := cmd.Output()
+	if err == nil {
+		return strings.TrimSpace(string(out)), nil
+	}
+
+	// Fallback to checking first remote if origin fails?
+    cmd = exec.Command("git", "remote", "-v")
+    out, err = cmd.Output()
+    if err != nil {
+        return "", err
+    }
+
+    lines := strings.Split(string(out), "\n")
+	if len(lines) > 0 {
+		fields := strings.Fields(lines[0])
+		if len(fields) >= 2 {
+			return fields[1], nil
+		}
+	}
+	return "", fmt.Errorf("could not determine remote url")
+}
+
+// Deprecated: Logic moved to DetectClient and strategies
 func DetectForge(override string) (string, error) {
 	if override != "" {
 		return override, nil
@@ -58,74 +122,27 @@ func DetectCommit(override string) (string, error) {
 }
 
 func DetectURL(override string) string {
-	if override != "" {
-		return override
-	}
-	// No explicit detection logic in spec for URL other than flag
-	return ""
+    if override != "" {
+        return override
+    }
+    // No explicit detection logic in spec for URL other than flag
+    return ""
 }
 
+// Deprecated: Use DetectClient strategies instead
 func DetectRepoInfo() (string, string, error) {
-	var originURL string
-	cmd := exec.Command("git", "remote", "get-url", "origin")
-	out, err := cmd.Output()
-	if err == nil {
-		originURL = strings.TrimSpace(string(out))
-		owner, repo, err := ParseGitHubRemote(originURL)
-		if err == nil {
-			return owner, repo, nil
-		}
-	}
-
-	// Fallback to checking all remotes if 'origin' fails or parses incorrectly
-	cmd = exec.Command("git", "remote", "-v")
-	out, err = cmd.Output()
+	// This function is kept for backward compatibility if needed,
+    // but the implementation logic is now in strategies.
+    // We can implement it using ParseGenericRemote as a fallback wrapper.
+	originURL, err := getOriginURL()
 	if err != nil {
 		return "", "", err
 	}
 
-	lines := strings.Split(string(out), "\n")
-	for _, line := range lines {
-		if strings.Contains(line, "github.com") {
-			fields := strings.Fields(line)
-			if len(fields) >= 2 {
-				owner, repo, err := ParseGitHubRemote(fields[1])
-				if err == nil {
-					return owner, repo, nil
-				}
-			}
-		}
+	owner, repo, err := ParseGitHubRemote(originURL)
+	if err == nil {
+		return owner, repo, nil
 	}
 
-	// Final Fallback: if we found an origin URL but it wasn't a standard GitHub one, try generic parsing
-	if originURL != "" {
-		owner, repo, err := ParseGenericRemote(originURL)
-		if err == nil {
-			return owner, repo, nil
-		}
-	}
-
-	return "", "", fmt.Errorf("could not detect repo info")
-}
-
-func ParseGenericRemote(remoteURL string) (owner, repo string, err error) {
-	remoteURL = strings.TrimSuffix(remoteURL, ".git")
-
-	cleanURL := remoteURL
-	// Handle scp-like syntax which uses ':' as separator
-	// e.g. git@github.com:owner/repo -> git@github.com/owner/repo
-	// We want to treat ':' as '/' if it's not part of the protocol scheme (://)
-	if idx := strings.Index(cleanURL, "://"); idx == -1 {
-		// No protocol scheme, assume ssh/scp-like
-		// Replace the FIRST ':' which separates host from path (or port?)
-		// git@host:owner/repo
-		cleanURL = strings.Replace(cleanURL, ":", "/", 1)
-	}
-
-	parts := strings.FieldsFunc(cleanURL, func(r rune) bool { return r == '/' })
-	if len(parts) < 2 {
-		return "", "", fmt.Errorf("cannot parse generic remote: %s", remoteURL)
-	}
-
-	return parts[len(parts)-2], parts[len(parts)-1], nil
+	return ParseGenericRemote(originURL)
 }
