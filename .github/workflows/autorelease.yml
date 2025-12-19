@@ -91,7 +91,11 @@ jobs:
         export CGO_ENABLED=0
         go tool dist list | grep -vE 'wasm|aix|plan9|android|ios|illumos|solaris|dragonfly' | while IFS=/ read -r GOOS GOARCH; do
           echo "::group::Build $GOOS/$GOARCH"
-          GOOS=$GOOS GOARCH=$GOARCH go build -v -o build/ci-status-$GOOS-$GOARCH ./cmd/ci-status && (echo "- $GOOS/$GOARCH" >> $GITHUB_STEP_SUMMARY) || true
+          GOOS=$GOOS GOARCH=$GOARCH ./ci-status run "Build $GOOS/$GOARCH" \
+            --url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            -- \
+            go build -v -o build/ci-status-$GOOS-$GOARCH ./cmd/ci-status \
+            && (echo "- $GOOS/$GOARCH" >> $GITHUB_STEP_SUMMARY) || true
           echo "::endgroup::"
         done
 
