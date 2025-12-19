@@ -77,6 +77,7 @@ jobs:
         NEW_VERSION: ${{ github.event.inputs.new_version }}
       run: |
         if [[ ! -z "$NEW_VERSION" ]]; then
+          git checkout main
           NO_TAG=1 ./make_release "$NEW_VERSION"
           echo "New version: $(cat version.txt)" >> $GITHUB_STEP_SUMMARY
           echo "RELEASE_VERSION=$(cat version.txt)" >> $GITHUB_ENV
@@ -94,7 +95,7 @@ jobs:
           echo "::endgroup::"
         done
 
-    - name: Create relase
+    - name: Create release
       if: env.RELEASE_VERSION != '' && github.event_name != 'pull_request'
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

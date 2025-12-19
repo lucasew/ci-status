@@ -29,6 +29,6 @@ git add -A
 git commit -sm "bump to $VERSION"
 if [[ ! -v NO_TAG ]]; then
 	git tag "$VERSION"
-	git push origin "$VERSION"
+	git push --tag
 fi
-git push origin HEAD:main
+git push
