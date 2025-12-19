@@ -25,3 +25,7 @@ type StatusOpts struct {
 type ForgeClient interface {
 	SetStatus(ctx context.Context, opts StatusOpts) error
 }
+
+// ForgeLoader is a strategy function that attempts to create a ForgeClient from a remote URL.
+// It returns nil if the URL is not supported by this strategy.
+type ForgeLoader func(url string) ForgeClient

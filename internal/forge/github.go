@@ -7,13 +7,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 )
 
 type GitHubClient struct {
-	Token string
-	Owner string
-	Repo  string
+	Token   string
+	Owner   string
+	Repo    string
+	BaseURL string
 }
 
 func NewGitHubClient(token, owner, repo string) *GitHubClient {
@@ -25,10 +27,20 @@ func NewGitHubClient(token, owner, repo string) *GitHubClient {
 }
 
 func (c *GitHubClient) SetStatus(ctx context.Context, opts StatusOpts) error {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/statuses/%s", c.Owner, c.Repo, opts.Commit)
+	baseURL := c.BaseURL
+	if baseURL == "" {
+		baseURL = "https://api.github.com"
+	}
+	baseURL = strings.TrimSuffix(baseURL, "/")
+
+	url := fmt.Sprintf("%s/repos/%s/%s/statuses/%s", baseURL, c.Owner, c.Repo, opts.Commit)
 
 	state := string(opts.State)
-	if opts.State == StateRunning && strings.HasPrefix(url, "https://api.github.com") {
+	// GitHub API specifically treats "running" as "pending" with a description,
+	// but only if we are talking to actual GitHub. For compatible forges (Gitea),
+	// they might support "running" or we might want to stick to "pending".
+	// The existing logic checks for prefix https://api.github.com.
+	if opts.State == StateRunning && (strings.HasPrefix(url, "https://api.github.com") || c.BaseURL == "") {
 		state = string(StatePending)
 	}
 
@@ -67,6 +79,28 @@ func (c *GitHubClient) SetStatus(ctx context.Context, opts StatusOpts) error {
 	}
 
 	return nil
+}
+
+func LoadGitHub(url string) ForgeClient {
+	owner, repo, err := ParseGitHubRemote(url)
+	if err != nil {
+		return nil
+	}
+	token := os.Getenv("GITHUB_TOKEN")
+	if token == "" {
+		// Log warning? For now just return nil or let it fail later?
+		// The requirement is "nil se não encaixa".
+		// If it parses as GitHub, it "fits". But if we have no token, we can't use it.
+		// However, returning nil might trigger fallback.
+		// If it IS github.com, we shouldn't fallback to generic.
+		// But if no token, we can't do anything.
+		// Let's return nil if no token, effectively disabling it.
+		// Or we return a client that will fail later.
+		// Based on `run.go` logic: if token missing -> noop.
+		// So we should probably return nil here if we want noop.
+		return nil
+	}
+	return NewGitHubClient(token, owner, repo)
 }
 
 func ParseGitHubRemote(remoteURL string) (owner, repo string, err error) {
