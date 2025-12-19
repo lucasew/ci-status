@@ -93,6 +93,13 @@ jobs:
         echo "# Built targets" >> $GITHUB_STEP_SUMMARY
         export CGO_ENABLED=0
 
+        # First pass: Create all statuses as pending/queued
+        go tool dist list | grep -vE 'wasm|aix|plan9|android|ios|illumos|solaris|dragonfly' | while IFS=/ read -r GOOS GOARCH; do
+          ./ci-status set "Build $GOOS/$GOARCH" \
+            --state pending \
+            --description "Queued" || true
+        done
+
         # Build each target
         go tool dist list | grep -vE 'wasm|aix|plan9|android|ios|illumos|solaris|dragonfly' | while IFS=/ read -r GOOS GOARCH; do
           echo "::group::Build $GOOS/$GOARCH"
