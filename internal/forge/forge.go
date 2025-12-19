@@ -7,6 +7,7 @@ import (
 type State string
 
 const (
+	StateRunning State = "running"
 	StatePending State = "pending"
 	StateSuccess State = "success"
 	StateFailure State = "failure"

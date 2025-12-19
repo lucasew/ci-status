@@ -27,8 +27,13 @@ func NewGitHubClient(token, owner, repo string) *GitHubClient {
 func (c *GitHubClient) SetStatus(ctx context.Context, opts StatusOpts) error {
 	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/statuses/%s", c.Owner, c.Repo, opts.Commit)
 
+	state := string(opts.State)
+	if opts.State == StateRunning {
+		state = string(StatePending)
+	}
+
 	body := map[string]string{
-		"state":       string(opts.State),
+		"state":       state,
 		"description": opts.Description,
 		"context":     opts.Context,
 	}
