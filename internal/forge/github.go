@@ -11,9 +11,10 @@ import (
 )
 
 type GitHubClient struct {
-	Token string
-	Owner string
-	Repo  string
+	Token   string
+	Owner   string
+	Repo    string
+	BaseURL string
 }
 
 func NewGitHubClient(token, owner, repo string) *GitHubClient {
@@ -25,16 +26,24 @@ func NewGitHubClient(token, owner, repo string) *GitHubClient {
 }
 
 func (c *GitHubClient) SetStatus(ctx context.Context, opts StatusOpts) error {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/statuses/%s", c.Owner, c.Repo, opts.Commit)
+	baseURL := c.BaseURL
+	if baseURL == "" {
+		baseURL = "https://api.github.com"
+	}
+	url := fmt.Sprintf("%s/repos/%s/%s/statuses/%s", baseURL, c.Owner, c.Repo, opts.Commit)
 
 	state := string(opts.State)
-	if opts.State == StateRunning && strings.HasPrefix(url, "https://api.github.com") {
+	description := opts.Description
+	if opts.State == StateRunning && strings.HasPrefix(baseURL, "https://api.github.com") {
 		state = string(StatePending)
+		if !strings.Contains(description, "(Running)") {
+			description += " (Running)"
+		}
 	}
 
 	body := map[string]string{
 		"state":       state,
-		"description": opts.Description,
+		"description": description,
 		"context":     opts.Context,
 	}
 	if opts.TargetURL != "" {
