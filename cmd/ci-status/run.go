@@ -83,12 +83,12 @@ func execute(cfg config.Config) error {
         }
 	}
 
-	// 4. Set Pending Status
+	// 4. Set Running Status
 	if client != nil && commit != "" {
 		err := client.SetStatus(ctx, forge.StatusOpts{
 			Commit:      commit,
 			Context:     cfg.ContextName,
-			State:       forge.StatePending,
+			State:       forge.StateRunning,
 			Description: cfg.PendingDesc,
 			TargetURL:   cfg.URL,
 		})
