@@ -20,6 +20,11 @@ func LoadGeneric(remoteURL string) ForgeClient {
 		return nil
 	}
 
+	// Prevent generic loader from taking over GitHub URLs if the specific loader failed
+	if host == "github.com" || host == "api.github.com" {
+		return nil
+	}
+
 	// Use GITHUB_TOKEN as fallback for generic forge token
 	token := os.Getenv("GITHUB_TOKEN")
 	if token == "" {

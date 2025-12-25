@@ -112,6 +112,7 @@ func ParseGitHubRemote(remoteURL string) (owner, repo string, err error) {
 	// git@github.com:owner/repo.git
 
 	remoteURL = strings.TrimSuffix(remoteURL, ".git")
+	remoteURL = strings.TrimSuffix(remoteURL, "/")
 
 	if strings.HasPrefix(remoteURL, "https://github.com/") {
 		parts := strings.Split(strings.TrimPrefix(remoteURL, "https://github.com/"), "/")
