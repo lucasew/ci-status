@@ -1,2 +1,10 @@
 [tools]
-go = "1.25.5"
+go = "1.23"
+golangci-lint = "latest"
+
+[tasks.ci]
+description = "Run linter and tests"
+run = """
+golangci-lint run
+go test ./...
+"""
