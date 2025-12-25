@@ -127,5 +127,13 @@ func ParseGitHubRemote(remoteURL string) (owner, repo string, err error) {
 		return parts[0], parts[1], nil
 	}
 
+	if strings.HasPrefix(remoteURL, "ssh://git@github.com/") {
+		parts := strings.Split(strings.TrimPrefix(remoteURL, "ssh://git@github.com/"), "/")
+		if len(parts) != 2 {
+			return "", "", fmt.Errorf("invalid ssh github url: %s", remoteURL)
+		}
+		return parts[0], parts[1], nil
+	}
+
 	return "", "", fmt.Errorf("unrecognized github url format: %s", remoteURL)
 }
