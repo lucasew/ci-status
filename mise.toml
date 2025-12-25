@@ -4,11 +4,11 @@ golangci-lint = "latest"
 
 [tasks.lint]
 description = "Run linter"
-run = "golangci-lint run"
+run = "go run ./cmd/ci-status run \"Lint\" -- golangci-lint run"
 
 [tasks.test]
 description = "Run tests"
-run = "go test ./..."
+run = "go run ./cmd/ci-status run \"Test\" -- go test ./..."
 
 [tasks.ci]
 description = "Run linter and tests"
