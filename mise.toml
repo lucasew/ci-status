@@ -1,10 +1,15 @@
 [tools]
-go = "1.23"
+go = "1.25.5"
 golangci-lint = "latest"
+
+[tasks.lint]
+description = "Run linter"
+run = "golangci-lint run"
+
+[tasks.test]
+description = "Run tests"
+run = "go test ./..."
 
 [tasks.ci]
 description = "Run linter and tests"
-run = """
-golangci-lint run
-go test ./...
-"""
+depends = ["lint", "test"]
