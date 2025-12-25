@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 )
@@ -110,9 +111,24 @@ func ParseGitHubRemote(remoteURL string) (owner, repo string, err error) {
 	// https://github.com/owner/repo.git
 	// https://github.com/owner/repo
 	// git@github.com:owner/repo.git
+	// https://x-access-token:...@github.com/owner/repo.git
 
 	remoteURL = strings.TrimSuffix(remoteURL, ".git")
 	remoteURL = strings.TrimSuffix(remoteURL, "/")
+
+	// Try parsing as URL first to handle auth and other schemes robustly
+	if u, err := url.Parse(remoteURL); err == nil {
+		if u.Host == "github.com" {
+			path := strings.TrimPrefix(u.Path, "/")
+			parts := strings.Split(path, "/")
+			if len(parts) == 2 {
+				return parts[0], parts[1], nil
+			}
+		}
+	}
+
+	// Fallback/Legacy handling for formats url.Parse might misinterpret (like git@github.com:...)
+	// although url.Parse usually fails or puts it in path for SCP-like syntax.
 
 	if strings.HasPrefix(remoteURL, "https://github.com/") {
 		parts := strings.Split(strings.TrimPrefix(remoteURL, "https://github.com/"), "/")
