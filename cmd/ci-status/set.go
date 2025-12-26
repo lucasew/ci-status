@@ -47,6 +47,13 @@ func init() {
 func executeSet(cfg SetConfig) error {
 	ctx := context.Background()
 
+	if os.Getenv("CI") == "" {
+		if !cfg.Silent {
+			fmt.Fprintln(os.Stderr, "Warning: CI environment variable not set, skipping status reporting")
+		}
+		return nil
+	}
+
 	// 1. Detect Forge Client
 	client, err := forge.DetectClient(cfg.Forge)
 	if err != nil {

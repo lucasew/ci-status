@@ -54,24 +54,36 @@ func init() {
 
 func execute(cfg config.Config) error {
 	ctx := context.Background()
+	var client forge.ForgeClient
+	var commit string
+	var err error
 
-	// 1. Detect Forge Client
-	// This replaces the previous separate steps for Forge Name -> Repo Info -> New Client
-	client, err := forge.DetectClient(cfg.Forge)
-	if err != nil {
-		if !cfg.Silent {
-			// It's a warning, not necessarily a fatal error if we want noop mode?
-			// But DetectClient returns error if no supported forge found.
-			// Previous logic printed Warning and proceeded (client=nil).
-			fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+	if os.Getenv("CI") != "" {
+		// 1. Detect Forge Client
+		// This replaces the previous separate steps for Forge Name -> Repo Info -> New Client
+		client, err = forge.DetectClient(cfg.Forge)
+		if err != nil {
+			if !cfg.Silent {
+				// It's a warning, not necessarily a fatal error if we want noop mode?
+				// But DetectClient returns error if no supported forge found.
+				// Previous logic printed Warning and proceeded (client=nil).
+				fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+			}
+			client = nil
 		}
-		client = nil
-	}
 
-	// 2. Detect Commit
-	commit, err := forge.DetectCommit(cfg.Commit)
-	if err != nil && !cfg.Silent {
-		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+		// 2. Detect Commit
+		// Only try to detect commit if we have a client to send status to
+		if client != nil {
+			commit, err = forge.DetectCommit(cfg.Commit)
+			if err != nil && !cfg.Silent {
+				fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+			}
+		}
+	} else {
+		if !cfg.Silent {
+			fmt.Fprintln(os.Stderr, "Warning: CI environment variable not set, skipping status reporting")
+		}
 	}
 
 	// 3. Set Running Status
