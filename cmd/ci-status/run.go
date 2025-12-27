@@ -58,7 +58,7 @@ func execute(cfg config.Config) error {
 	var commit string
 	var err error
 
-	if checkCI(cfg.Silent) {
+	if isCI(cfg.Silent) {
 		// 1. Detect Forge Client
 		// This replaces the previous separate steps for Forge Name -> Repo Info -> New Client
 		client, err = forge.DetectClient(cfg.Forge)

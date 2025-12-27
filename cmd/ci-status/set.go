@@ -47,7 +47,7 @@ func init() {
 func executeSet(cfg SetConfig) error {
 	ctx := context.Background()
 
-	if !checkCI(cfg.Silent) {
+	if !isCI(cfg.Silent) {
 		return nil
 	}
 
