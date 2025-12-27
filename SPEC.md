@@ -93,6 +93,10 @@ ci-status run [flags] <context-name> -- <command> [args...]
 --silent
     Suppress output when running in noop mode or on errors
     Default: false
+
+--sentry-monitor string
+    Sentry Cron Monitor slug. If set, reports "in_progress" at start and "ok"/"error" at end.
+    Requires SENTRY_DSN environment variable.
 ```
 
 ## Execution Flow
@@ -158,6 +162,9 @@ When context cannot be detected or credentials are missing:
 - Missing command after `--` → print usage and exit 1
 - Command timeout → set error status, exit with code 124
 - Forge API errors → log warning (unless `--silent`), still exit with command's exit code
+- Sentry errors → log warning (unless silent), still exit with command's exit code.
+  - Sentry initialization fails -> Warning, proceed without Sentry.
+  - SENTRY_DSN missing when --sentry-monitor is used -> Exit 1.
 
 ## Examples
 

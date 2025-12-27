@@ -18,4 +18,6 @@ type Config struct {
 	FailureDesc string
 	Timeout     time.Duration
 	Silent      bool
+
+	SentryMonitorSlug string
 }

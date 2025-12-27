@@ -10,6 +10,7 @@ import (
 	"ci-status/internal/config"
 	"ci-status/internal/executor"
 	"ci-status/internal/forge"
+	"ci-status/internal/sentry"
 )
 
 var runConfig config.Config
@@ -48,6 +49,7 @@ func init() {
 	RunCmd.Flags().StringVar(&runConfig.FailureDesc, "failure-desc", "Failed", "Description shown when command exits with non-zero code")
 	RunCmd.Flags().DurationVar(&runConfig.Timeout, "timeout", 0, "Maximum time allowed for command execution")
 	RunCmd.Flags().BoolVar(&runConfig.Silent, "silent", false, "Suppress output when running in noop mode or on errors")
+	RunCmd.Flags().StringVar(&runConfig.SentryMonitorSlug, "sentry-monitor", "", "Sentry Cron Monitor slug")
 
 	Command.AddCommand(RunCmd)
 }
@@ -55,8 +57,27 @@ func init() {
 func execute(cfg config.Config) error {
 	ctx := context.Background()
 	var client forge.ForgeClient
+	var monitor *sentry.Monitor
 	var commit string
 	var err error
+
+	if cfg.SentryMonitorSlug != "" {
+		dsn := sentry.EnvDSN()
+		if dsn == "" {
+			fmt.Fprintln(os.Stderr, "Error: SENTRY_DSN environment variable is required when using --sentry-monitor")
+			os.Exit(1)
+		}
+		var err error
+		monitor, err = sentry.NewMonitor(dsn, cfg.SentryMonitorSlug)
+		if err != nil {
+			if !cfg.Silent {
+				fmt.Fprintf(os.Stderr, "Warning: failed to initialize Sentry: %v\n", err)
+			}
+		} else {
+			monitor.Start()
+			// We will call Finish at the end.
+		}
+	}
 
 	if isCI(cfg.Silent) {
 		// 1. Detect Forge Client
@@ -102,6 +123,10 @@ func execute(cfg config.Config) error {
 
     // Handle timeout specifically
     if err != nil && err.Error() == "command timed out" {
+        if monitor != nil {
+            monitor.Finish(false)
+            monitor = nil // Prevent double reporting
+        }
         if client != nil && commit != "" {
             _ = client.SetStatus(ctx, forge.StatusOpts{
                 Commit:      commit,
@@ -138,6 +163,10 @@ func execute(cfg config.Config) error {
 		if err != nil && !cfg.Silent {
 			fmt.Fprintf(os.Stderr, "Warning: failed to set final status: %v\n", err)
 		}
+	}
+
+	if monitor != nil {
+		monitor.Finish(exitCode == 0 && err == nil)
 	}
 
 	// 7. Exit
