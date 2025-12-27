@@ -47,10 +47,7 @@ func init() {
 func executeSet(cfg SetConfig) error {
 	ctx := context.Background()
 
-	if os.Getenv("CI") == "" {
-		if !cfg.Silent {
-			fmt.Fprintln(os.Stderr, "Warning: CI environment variable not set, skipping status reporting")
-		}
+	if !checkCI(cfg.Silent) {
 		return nil
 	}
 

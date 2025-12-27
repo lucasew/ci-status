@@ -58,7 +58,7 @@ func execute(cfg config.Config) error {
 	var commit string
 	var err error
 
-	if os.Getenv("CI") != "" {
+	if checkCI(cfg.Silent) {
 		// 1. Detect Forge Client
 		// This replaces the previous separate steps for Forge Name -> Repo Info -> New Client
 		client, err = forge.DetectClient(cfg.Forge)
@@ -79,10 +79,6 @@ func execute(cfg config.Config) error {
 			if err != nil && !cfg.Silent {
 				fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
 			}
-		}
-	} else {
-		if !cfg.Silent {
-			fmt.Fprintln(os.Stderr, "Warning: CI environment variable not set, skipping status reporting")
 		}
 	}
 
