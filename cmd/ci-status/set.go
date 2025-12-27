@@ -47,6 +47,10 @@ func init() {
 func executeSet(cfg SetConfig) error {
 	ctx := context.Background()
 
+	if !isCI(cfg.Silent) {
+		return nil
+	}
+
 	// 1. Detect Forge Client
 	client, err := forge.DetectClient(cfg.Forge)
 	if err != nil {
