@@ -65,8 +65,10 @@ func (c *GitHubClient) SetStatus(ctx context.Context, opts StatusOpts) error {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	if c.Token != "" {
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+	// Sanitize token to prevent header injection.
+	sanitizedToken := strings.NewReplacer("\n", "", "\r", "").Replace(c.Token)
+	if sanitizedToken != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sanitizedToken))
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
