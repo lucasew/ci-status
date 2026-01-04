@@ -53,21 +53,14 @@ func getOriginURL() (string, error) {
 		return strings.TrimSpace(string(out)), nil
 	}
 
-	// Fallback to checking first remote if origin fails?
-    cmd = exec.Command("git", "remote", "-v")
-    out, err = cmd.Output()
-    if err != nil {
-        return "", err
-    }
-
-    lines := strings.Split(string(out), "\n")
-	if len(lines) > 0 {
-		fields := strings.Fields(lines[0])
-		if len(fields) >= 2 {
-			return fields[1], nil
-		}
+	// Fallback to checking 'upstream' remote if 'origin' fails
+	cmd = exec.Command("git", "remote", "get-url", "upstream")
+	out, err = cmd.Output()
+	if err == nil {
+		return strings.TrimSpace(string(out)), nil
 	}
-	return "", fmt.Errorf("could not determine remote url")
+
+	return "", fmt.Errorf("could not determine remote url for 'origin' or 'upstream'")
 }
 
 // Deprecated: Logic moved to DetectClient and strategies
