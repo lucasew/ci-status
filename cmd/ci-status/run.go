@@ -52,100 +52,106 @@ func init() {
 	Command.AddCommand(RunCmd)
 }
 
+func setupForge(cfg config.Config) (forge.ForgeClient, string) {
+	if !isCI(cfg.Silent) {
+		return nil, ""
+	}
+
+	client, err := forge.DetectClient(cfg.Forge)
+	if err != nil {
+		if !cfg.Silent {
+			fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+		}
+		return nil, ""
+	}
+
+	commit, err := forge.DetectCommit(cfg.Commit)
+	if err != nil {
+		if !cfg.Silent {
+			fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+		}
+		return client, ""
+	}
+
+	return client, commit
+}
+
 func execute(cfg config.Config) error {
 	ctx := context.Background()
-	var client forge.ForgeClient
-	var commit string
-	var err error
+	client, commit := setupForge(cfg)
 
-	if isCI(cfg.Silent) {
-		// 1. Detect Forge Client
-		// This replaces the previous separate steps for Forge Name -> Repo Info -> New Client
-		client, err = forge.DetectClient(cfg.Forge)
-		if err != nil {
-			if !cfg.Silent {
-				// It's a warning, not necessarily a fatal error if we want noop mode?
-				// But DetectClient returns error if no supported forge found.
-				// Previous logic printed Warning and proceeded (client=nil).
-				fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
-			}
-			client = nil
-		}
+	setInitialStatus(ctx, client, commit, cfg)
 
-		// 2. Detect Commit
-		// Only try to detect commit if we have a client to send status to
-		if client != nil {
-			commit, err = forge.DetectCommit(cfg.Commit)
-			if err != nil && !cfg.Silent {
-				fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
-			}
-		}
+	exitCode, err := runCommand(ctx, cfg)
+
+	// Handle timeout reporting separately as it has a special state
+	if err != nil && err.Error() == "command timed out" {
+		fmt.Fprintln(os.Stderr, "Error: command timed out")
+		// The error state is set in setFinalStatus, but we need the specific exit code.
+		exitCode = 124
 	}
 
-	// 3. Set Running Status
-	if client != nil && commit != "" {
-		err := client.SetStatus(ctx, forge.StatusOpts{
-			Commit:      commit,
-			Context:     cfg.ContextName,
-			State:       forge.StateRunning,
-			Description: cfg.PendingDesc,
-			TargetURL:   cfg.URL,
-		})
-		if err != nil && !cfg.Silent {
-			fmt.Fprintf(os.Stderr, "Warning: failed to set pending status: %v\n", err)
-		}
-	}
+	setFinalStatus(ctx, client, commit, exitCode, err, cfg)
 
-	// 5. Execute Command
-	exec := executor.New()
-	exitCode, err := exec.Run(ctx, cfg.Timeout, cfg.Command, cfg.Args)
-
-    // Handle timeout specifically
-    if err != nil && err.Error() == "command timed out" {
-        if client != nil && commit != "" {
-            _ = client.SetStatus(ctx, forge.StatusOpts{
-                Commit:      commit,
-                Context:     cfg.ContextName,
-                State:       forge.StateError,
-                Description: "Timed out",
-                TargetURL:   cfg.URL,
-            })
-        }
-        fmt.Fprintln(os.Stderr, "Error: command timed out")
-        os.Exit(124)
-    }
-
-	// 6. Set Final Status
-	if client != nil && commit != "" {
-		var state forge.State
-		var desc string
-
-		if exitCode == 0 && err == nil {
-			state = forge.StateSuccess
-			desc = cfg.SuccessDesc
-		} else {
-			state = forge.StateFailure
-			desc = cfg.FailureDesc
-		}
-
-		err := client.SetStatus(ctx, forge.StatusOpts{
-			Commit:      commit,
-			Context:     cfg.ContextName,
-			State:       state,
-			Description: desc,
-			TargetURL:   cfg.URL,
-		})
-		if err != nil && !cfg.Silent {
-			fmt.Fprintf(os.Stderr, "Warning: failed to set final status: %v\n", err)
-		}
-	}
-
-	// 7. Exit
+	// Handle process exit code
 	if err != nil && exitCode == 0 {
-		// If there was an error running the command but not exit code (e.g. start failed)
+		// Generic error running the command (e.g., command not found)
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
+
 	os.Exit(exitCode)
-	return nil
+	return nil // Unreachable
+}
+
+func setInitialStatus(ctx context.Context, client forge.ForgeClient, commit string, cfg config.Config) {
+	if client == nil || commit == "" {
+		return
+	}
+	err := client.SetStatus(ctx, forge.StatusOpts{
+		Commit:      commit,
+		Context:     cfg.ContextName,
+		State:       forge.StateRunning,
+		Description: cfg.PendingDesc,
+		TargetURL:   cfg.URL,
+	})
+	if err != nil && !cfg.Silent {
+		fmt.Fprintf(os.Stderr, "Warning: failed to set pending status: %v\n", err)
+	}
+}
+
+func runCommand(ctx context.Context, cfg config.Config) (int, error) {
+	exec := executor.New()
+	return exec.Run(ctx, cfg.Timeout, cfg.Command, cfg.Args)
+}
+
+func setFinalStatus(ctx context.Context, client forge.ForgeClient, commit string, exitCode int, err error, cfg config.Config) {
+	if client == nil || commit == "" {
+		return
+	}
+
+	var state forge.State
+	var desc string
+
+	if exitCode == 0 && err == nil {
+		state = forge.StateSuccess
+		desc = cfg.SuccessDesc
+	} else if err != nil && err.Error() == "command timed out" {
+		state = forge.StateError
+		desc = "Timed out"
+	} else {
+		state = forge.StateFailure
+		desc = cfg.FailureDesc
+	}
+
+	statusErr := client.SetStatus(ctx, forge.StatusOpts{
+		Commit:      commit,
+		Context:     cfg.ContextName,
+		State:       state,
+		Description: desc,
+		TargetURL:   cfg.URL,
+	})
+	if statusErr != nil && !cfg.Silent {
+		fmt.Fprintf(os.Stderr, "Warning: failed to set final status: %v\n", statusErr)
+	}
 }
