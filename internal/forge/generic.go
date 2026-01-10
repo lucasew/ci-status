@@ -74,21 +74,32 @@ func getHostAndScheme(remoteURL string) (string, string) {
 func ParseGenericRemote(remoteURL string) (owner, repo string, err error) {
 	remoteURL = strings.TrimSuffix(remoteURL, ".git")
 
-	cleanURL := remoteURL
-    // Handle scp-like syntax which uses ':' as separator
-    // e.g. git@github.com:owner/repo -> git@github.com/owner/repo
-    // We want to treat ':' as '/' if it's not part of the protocol scheme (://)
-	if idx := strings.Index(cleanURL, "://"); idx == -1 {
-         // No protocol scheme, assume ssh/scp-like
-         // Replace the FIRST ':' which separates host from path (or port?)
-         // git@host:owner/repo
-         cleanURL = strings.Replace(cleanURL, ":", "/", 1)
+	// SECURITY: The previous implementation used string splitting on the entire
+	// URL, which could lead to path injection if a malformed URL was provided
+	// (e.g., `https://example.com` would be parsed as owner=`https:`, repo=`example.com`).
+	//
+	// To fix this, we now use `net/url.Parse` for robust parsing. We also
+	// handle scp-like git URLs by converting them to a ssh:// scheme first.
+	//
+	// Example of scp-like URL: git@gitea.com:user/repo
+	// Converted to: ssh://git@gitea.com/user/repo
+	if !strings.Contains(remoteURL, "://") && strings.Contains(remoteURL, ":") {
+		remoteURL = "ssh://" + strings.Replace(remoteURL, ":", "/", 1)
 	}
 
-	parts := strings.FieldsFunc(cleanURL, func(r rune) bool { return r == '/' })
+	u, err := url.Parse(remoteURL)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to parse remote URL: %w", err)
+	}
+
+	// We expect the path to be in the format `/<owner>/<repo>`
+	path := strings.TrimPrefix(u.Path, "/")
+	parts := strings.Split(path, "/")
+
 	if len(parts) < 2 {
-		return "", "", fmt.Errorf("cannot parse generic remote: %s", remoteURL)
+		return "", "", fmt.Errorf("invalid path in remote URL, expected owner/repo: %s", u.Path)
 	}
 
+	// Take the last two parts of the path as owner and repo
 	return parts[len(parts)-2], parts[len(parts)-1], nil
 }
