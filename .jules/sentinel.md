@@ -1,5 +1,11 @@
 ## 2024-09-05 - Inadequate Sanitization via TrimSpace
 
 **Vulnerability:** HTTP Header Injection (CRLF Injection) in the GitHub client's `Authorization` header construction.
-**Learning:** An attempt to simplify the sanitization logic by replacing `strings.NewReplacer("\n", "", "\r", "")` with `strings.TrimSpace()` introduced a critical security flaw. `strings.TrimSpace()` only removes leading and trailing whitespace, including `\r` and `\n`. It does *not* remove these characters if they are present in the middle of the token, leaving the application vulnerable to header injection.
+**Learning:** An attempt to simplify the sanitization logic by replacing `strings.NewReplacer("\n", "", "\r", "")` with `strings.TrimSpace()` introduced a critical security flaw. `strings.TrimSpace()` only removes leading and trailing whitespace, including `\r` and `n`. It does *not* remove these characters if they are present in the middle of the token, leaving the application vulnerable to header injection.
 **Prevention:** When sanitizing inputs to prevent CRLF injection, always use a method that removes newline and carriage return characters from the *entire* string, not just the beginning and end. `strings.NewReplacer` is a robust and appropriate tool for this purpose. Do not assume that `strings.TrimSpace` provides equivalent security. Always verify that sanitization logic correctly addresses the specific threat model.
+
+## 2026-01-10 - Path Traversal in Generic Forge Client
+
+**Vulnerability:** Path Traversal in `internal/forge/generic.go`. The `ParseGenericRemote` function used naive string splitting (`strings.FieldsFunc`) to extract the owner and repo from a remote URL. A malicious URL containing `../` sequences could manipulate the parsed path, causing the application to report commit statuses to an incorrect and unauthorized repository.
+**Learning:** Manually parsing complex formats like URLs with simple string operations is error-prone and a common source of security vulnerabilities. The Go standard library provides robust and secure tools for handling such data, and they should always be preferred. In this case, `net/url.Parse` and `path.Clean` are the appropriate tools.
+**Prevention:** Always use standard library functions for parsing URLs, file paths, and other structured data. Never trust or implement custom parsing logic for security-sensitive data formats. Mandate the use of `net/url.Parse` for all URL handling in code reviews.
