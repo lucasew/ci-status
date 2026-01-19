@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path"
 	"strings"
 )
 
@@ -72,23 +73,38 @@ func getHostAndScheme(remoteURL string) (string, string) {
 }
 
 func ParseGenericRemote(remoteURL string) (owner, repo string, err error) {
-	remoteURL = strings.TrimSuffix(remoteURL, ".git")
-
-	cleanURL := remoteURL
-    // Handle scp-like syntax which uses ':' as separator
-    // e.g. git@github.com:owner/repo -> git@github.com/owner/repo
-    // We want to treat ':' as '/' if it's not part of the protocol scheme (://)
-	if idx := strings.Index(cleanURL, "://"); idx == -1 {
-         // No protocol scheme, assume ssh/scp-like
-         // Replace the FIRST ':' which separates host from path (or port?)
-         // git@host:owner/repo
-         cleanURL = strings.Replace(cleanURL, ":", "/", 1)
+	// Trim .git suffix and handle scp-like URLs by replacing the first ':' with '/'
+	// This is a common pattern for git remotes, e.g., git@gitea.com:user/repo
+	sanitizedURL := strings.TrimSuffix(remoteURL, ".git")
+	if !strings.Contains(sanitizedURL, "://") {
+		if parts := strings.SplitN(sanitizedURL, ":", 2); len(parts) == 2 {
+			sanitizedURL = parts[0] + "/" + parts[1]
+		}
 	}
 
-	parts := strings.FieldsFunc(cleanURL, func(r rune) bool { return r == '/' })
+	// Use the standard library to parse the URL, which is safer than manual splitting.
+	parsedURL, err := url.Parse(sanitizedURL)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to parse generic remote URL: %w", err)
+	}
+
+	// Clean the path to resolve any directory traversal attempts (e.g., ../)
+	cleanedPath := path.Clean(parsedURL.Path)
+	parts := strings.Split(strings.Trim(cleanedPath, "/"), "/")
+
+	// We expect at least two parts for owner and repo
 	if len(parts) < 2 {
-		return "", "", fmt.Errorf("cannot parse generic remote: %s", remoteURL)
+		return "", "", fmt.Errorf("invalid URL path for remote: %s", remoteURL)
 	}
 
-	return parts[len(parts)-2], parts[len(parts)-1], nil
+	// The owner and repo are the last two parts of the path
+	owner = parts[len(parts)-2]
+	repo = parts[len(parts)-1]
+
+	// Final validation to ensure owner and repo are not empty or "."
+	if owner == "" || repo == "" || owner == "." || repo == "." {
+		return "", "", fmt.Errorf("extracted owner or repo is invalid from: %s", remoteURL)
+	}
+
+	return owner, repo, nil
 }
