@@ -34,7 +34,15 @@ var RunCmd = &cobra.Command{
             runConfig.Args = args[dashIdx+1:]
         }
 
-		return execute(runConfig)
+		exitCode, err := execute(runConfig)
+		if err != nil && exitCode == 0 {
+			// If there was an error running the command but not exit code (e.g. start failed)
+			return err
+		}
+		if exitCode != 0 {
+			os.Exit(exitCode)
+		}
+		return nil
 	},
 }
 
@@ -52,7 +60,7 @@ func init() {
 	Command.AddCommand(RunCmd)
 }
 
-func execute(cfg config.Config) error {
+func execute(cfg config.Config) (int, error) {
 	ctx := context.Background()
 	client, commit := initForge(cfg.Forge, cfg.Commit, cfg.Silent)
 	var err error
@@ -74,20 +82,20 @@ func execute(cfg config.Config) error {
 	exec := executor.New()
 	exitCode, err := exec.Run(ctx, cfg.Timeout, cfg.Command, cfg.Args)
 
-    // Handle timeout specifically
-    if err != nil && err.Error() == "command timed out" {
-        if client != nil && commit != "" {
-            _ = client.SetStatus(ctx, forge.StatusOpts{
-                Commit:      commit,
-                Context:     cfg.ContextName,
-                State:       forge.StateError,
-                Description: "Timed out",
-                TargetURL:   cfg.URL,
-            })
-        }
-        fmt.Fprintln(os.Stderr, "Error: command timed out")
-        os.Exit(124)
-    }
+	// Handle timeout specifically
+	if err != nil && err.Error() == "command timed out" {
+		if client != nil && commit != "" {
+			_ = client.SetStatus(ctx, forge.StatusOpts{
+				Commit:      commit,
+				Context:     cfg.ContextName,
+				State:       forge.StateError,
+				Description: "Timed out",
+				TargetURL:   cfg.URL,
+			})
+		}
+		fmt.Fprintln(os.Stderr, "Error: command timed out")
+		return 124, nil
+	}
 
 	// 6. Set Final Status
 	if client != nil && commit != "" {
@@ -114,12 +122,5 @@ func execute(cfg config.Config) error {
 		}
 	}
 
-	// 7. Exit
-	if err != nil && exitCode == 0 {
-		// If there was an error running the command but not exit code (e.g. start failed)
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
-	os.Exit(exitCode)
-	return nil
+	return exitCode, err
 }
