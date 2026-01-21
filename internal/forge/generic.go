@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path"
 	"strings"
 )
 
@@ -74,21 +75,58 @@ func getHostAndScheme(remoteURL string) (string, string) {
 func ParseGenericRemote(remoteURL string) (owner, repo string, err error) {
 	remoteURL = strings.TrimSuffix(remoteURL, ".git")
 
-	cleanURL := remoteURL
-    // Handle scp-like syntax which uses ':' as separator
-    // e.g. git@github.com:owner/repo -> git@github.com/owner/repo
-    // We want to treat ':' as '/' if it's not part of the protocol scheme (://)
-	if idx := strings.Index(cleanURL, "://"); idx == -1 {
-         // No protocol scheme, assume ssh/scp-like
-         // Replace the FIRST ':' which separates host from path (or port?)
-         // git@host:owner/repo
-         cleanURL = strings.Replace(cleanURL, ":", "/", 1)
+	// Normalize SCP-like syntax (git@host:path -> ssh://git@host/path) to make it url.Parse friendly
+	// If it doesn't have ://, it might be scp-style or just a local path?
+	// But local paths are usually not remotes we care about here?
+	// We should try to prepend ssh:// if it looks like scp.
+
+	toParse := remoteURL
+	if !strings.Contains(remoteURL, "://") {
+		// Assume SCP-style or SSH if it has user@host:path or host:path
+		// Convert "git@github.com:owner/repo" -> "ssh://git@github.com/owner/repo"
+		if strings.Contains(remoteURL, ":") {
+			// Replace the first : with / IF it is separating host and path
+			// But we need to handle the protocol part.
+			// Let's just prepend ssh:// and replace the first : with /
+			// Wait, "git@host:path" -> "ssh://git@host/path"
+
+			// Find the colon that separates host/port from path.
+			// This is heuristic.
+			idx := strings.Index(remoteURL, ":")
+			if idx != -1 {
+				toParse = "ssh://" + remoteURL[:idx] + "/" + remoteURL[idx+1:]
+			}
+		}
 	}
 
-	parts := strings.FieldsFunc(cleanURL, func(r rune) bool { return r == '/' })
+	u, err := url.Parse(toParse)
+	if err != nil {
+		// Fallback to simple split if parsing fails?
+		// Or should we error out?
+		// The original code was loose.
+		// Let's error out if we can't parse it safely.
+		return "", "", fmt.Errorf("cannot parse generic remote: %w", err)
+	}
+
+	// Use path.Clean to resolve .. and .
+	cleanedPath := path.Clean(u.Path)
+
+	// Remove leading slash if present
+	cleanedPath = strings.TrimPrefix(cleanedPath, "/")
+
+	parts := strings.Split(cleanedPath, "/")
 	if len(parts) < 2 {
 		return "", "", fmt.Errorf("cannot parse generic remote: %s", remoteURL)
 	}
 
-	return parts[len(parts)-2], parts[len(parts)-1], nil
+	// Extract the last two parts
+	owner = parts[len(parts)-2]
+	repo = parts[len(parts)-1]
+
+	// Final check: prevent ".." from slipping through if path.Clean left it (e.g. if path was ../../foo)
+	if owner == ".." || repo == ".." || owner == "." || repo == "." {
+		return "", "", fmt.Errorf("invalid path components in remote url: %s", remoteURL)
+	}
+
+	return owner, repo, nil
 }
