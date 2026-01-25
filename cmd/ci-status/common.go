@@ -7,6 +7,9 @@ import (
 	"ci-status/internal/forge"
 )
 
+// isCI checks if the tool is running inside a Continuous Integration environment.
+// It relies on the presence of the "CI" environment variable (standard in GitHub Actions, GitLab CI, etc.).
+// If silent is false, it prints a warning to stderr when CI is not detected.
 func isCI(silent bool) bool {
 	if os.Getenv("CI") == "" {
 		if !silent {
