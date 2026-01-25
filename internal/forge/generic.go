@@ -7,6 +7,9 @@ import (
 	"strings"
 )
 
+// LoadGeneric is a strategy to initialize a ForgeClient for generic Gitea/Forgejo instances.
+// It assumes the forge supports a GitHub-compatible API at `/api/v1`.
+// It explicitly rejects GitHub URLs to prevent fallback loops or incorrect client initialization.
 func LoadGeneric(remoteURL string) ForgeClient {
 	owner, repo, err := ParseGenericRemote(remoteURL)
 	if err != nil {
@@ -37,6 +40,8 @@ func LoadGeneric(remoteURL string) ForgeClient {
 	return client
 }
 
+// getHostAndScheme extracts the host and scheme from the remote URL.
+// For SSH URLs, it assumes "https" as the API scheme.
 func getHostAndScheme(remoteURL string) (string, string) {
 	// Handle HTTP/HTTPS
 	if strings.HasPrefix(remoteURL, "http://") || strings.HasPrefix(remoteURL, "https://") {
@@ -71,18 +76,23 @@ func getHostAndScheme(remoteURL string) (string, string) {
 	return "", ""
 }
 
+// ParseGenericRemote extracts the owner and repository from a generic remote URL.
+// It normalizes SCP-like syntax (git@host:path) by replacing the first colon with a slash,
+// allowing consistent path splitting.
+// Security Note: This implementation aims to be robust against path traversal attempts
+// by strictly using the last two path segments as owner and repo.
 func ParseGenericRemote(remoteURL string) (owner, repo string, err error) {
 	remoteURL = strings.TrimSuffix(remoteURL, ".git")
 
 	cleanURL := remoteURL
-    // Handle scp-like syntax which uses ':' as separator
-    // e.g. git@github.com:owner/repo -> git@github.com/owner/repo
-    // We want to treat ':' as '/' if it's not part of the protocol scheme (://)
+	// Handle scp-like syntax which uses ':' as separator
+	// e.g. git@github.com:owner/repo -> git@github.com/owner/repo
+	// We want to treat ':' as '/' if it's not part of the protocol scheme (://)
 	if idx := strings.Index(cleanURL, "://"); idx == -1 {
-         // No protocol scheme, assume ssh/scp-like
-         // Replace the FIRST ':' which separates host from path (or port?)
-         // git@host:owner/repo
-         cleanURL = strings.Replace(cleanURL, ":", "/", 1)
+		// No protocol scheme, assume ssh/scp-like
+		// Replace the FIRST ':' which separates host from path (or port?)
+		// git@host:owner/repo
+		cleanURL = strings.Replace(cleanURL, ":", "/", 1)
 	}
 
 	parts := strings.FieldsFunc(cleanURL, func(r rune) bool { return r == '/' })
@@ -90,5 +100,6 @@ func ParseGenericRemote(remoteURL string) (owner, repo string, err error) {
 		return "", "", fmt.Errorf("cannot parse generic remote: %s", remoteURL)
 	}
 
+	// Taking the last two parts handles cases like ssh://host/group/subgroup/owner/repo
 	return parts[len(parts)-2], parts[len(parts)-1], nil
 }

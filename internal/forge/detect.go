@@ -7,31 +7,24 @@ import (
 	"strings"
 )
 
-// DetectClient attempts to detect and initialize a ForgeClient based on the repository remote URL.
-// It iterates through available strategies (GitHub, Generic).
+// DetectClient attempts to identify the appropriate ForgeClient by analyzing the repository's remote URL.
+// It iterates through available strategies (e.g., GitHub, Generic) to find a match.
+// An optional overrideForge parameter can be used to prioritize a specific strategy (e.g., "github").
 func DetectClient(overrideForge string) (ForgeClient, error) {
-	// If forge is explicitly set to github, we try GitHub strategy only?
-	// The override logic in original code was checking "github" -> ParseGitHubRemote.
-
-	// First get the remote URL.
-	// For "GitHub" override, we still need the URL to get owner/repo unless we want to force something.
-	// But `DetectRepoInfo` previously did parsing.
-
 	originURL, err := getOriginURL()
 	if err != nil {
 		return nil, err
 	}
 
+	// If the user explicitly requested GitHub, try that strategy first.
 	if overrideForge == "github" {
 		client := LoadGitHub(originURL)
 		if client != nil {
 			return client, nil
 		}
-		// If explicit override but failed to load (e.g. format mismatch), we might error out.
-		// But let's stick to the flow.
 	}
 
-	// Try strategies in order
+	// Iterate through supported strategies in order of precedence.
 	strategies := []ForgeLoader{
 		LoadGitHub,
 		LoadGeneric,
@@ -46,6 +39,9 @@ func DetectClient(overrideForge string) (ForgeClient, error) {
 	return nil, fmt.Errorf("no supported forge detected for url: %s", originURL)
 }
 
+// getOriginURL retrieves the remote URL for the repository.
+// It attempts to read from the 'origin' remote first, falling back to 'upstream' if 'origin' is not defined.
+// This supports forked repositories where the upstream might be the primary source of truth.
 func getOriginURL() (string, error) {
 	cmd := exec.Command("git", "remote", "get-url", "origin")
 	out, err := cmd.Output()
@@ -63,7 +59,8 @@ func getOriginURL() (string, error) {
 	return "", fmt.Errorf("could not determine remote url for 'origin' or 'upstream'")
 }
 
-// Deprecated: Logic moved to DetectClient and strategies
+// DetectForge identifies the forge type from the git remote URL or an override.
+// @deprecated: Logic moved to DetectClient and specific ForgeLoader strategies.
 func DetectForge(override string) (string, error) {
 	if override != "" {
 		return override, nil
@@ -89,6 +86,9 @@ func DetectForge(override string) (string, error) {
 	return "", fmt.Errorf("could not detect forge")
 }
 
+// DetectCommit resolves the commit SHA to be reported.
+// It prioritizes the override value, then CI environment variables (GITHUB_SHA, CI_COMMIT_SHA, BITBUCKET_COMMIT),
+// and finally falls back to the current git HEAD.
 func DetectCommit(override string) (string, error) {
 	if override != "" {
 		return override, nil
@@ -114,19 +114,18 @@ func DetectCommit(override string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+// DetectURL returns the target URL for the status description.
+// Currently, it acts as a passthrough for the override value, as there is no automatic detection logic implemented.
 func DetectURL(override string) string {
-    if override != "" {
-        return override
-    }
-    // No explicit detection logic in spec for URL other than flag
-    return ""
+	if override != "" {
+		return override
+	}
+	return ""
 }
 
-// Deprecated: Use DetectClient strategies instead
+// DetectRepoInfo attempts to extract the owner and repository name from the remote URL.
+// @deprecated: Use DetectClient strategies instead. This function is retained for backward compatibility.
 func DetectRepoInfo() (string, string, error) {
-	// This function is kept for backward compatibility if needed,
-    // but the implementation logic is now in strategies.
-    // We can implement it using ParseGenericRemote as a fallback wrapper.
 	originURL, err := getOriginURL()
 	if err != nil {
 		return "", "", err
