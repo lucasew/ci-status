@@ -44,6 +44,10 @@ func init() {
 	Command.AddCommand(SetCmd)
 }
 
+// executeSet performs a single status update operation.
+//
+// It detects the forge client and commit SHA, then sends the status update.
+// If not running in a CI environment (and not forced), it returns early.
 func executeSet(cfg SetConfig) error {
 	ctx := context.Background()
 

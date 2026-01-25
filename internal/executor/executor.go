@@ -9,11 +9,13 @@ import (
 	"time"
 )
 
+// Executor handles command execution with timeout support and output capture.
 type Executor struct {
 	Stdout io.Writer
 	Stderr io.Writer
 }
 
+// New creates a new Executor configured to write to os.Stdout and os.Stderr.
 func New() *Executor {
 	return &Executor{
 		Stdout: os.Stdout,
@@ -21,6 +23,12 @@ func New() *Executor {
 	}
 }
 
+// Run executes a command with an optional timeout.
+//
+// It returns the exit code of the command and an error.
+// If the command times out, it returns exit code 124 and an error "command timed out".
+// If the command fails to start, it returns 0 and an error.
+// If the command runs but returns a non-zero exit code, it returns that code and nil error.
 func (e *Executor) Run(ctx context.Context, timeout time.Duration, command string, args []string) (int, error) {
 	var cmd *exec.Cmd
 

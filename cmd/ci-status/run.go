@@ -52,6 +52,14 @@ func init() {
 	Command.AddCommand(RunCmd)
 }
 
+// execute orchestrates the command execution lifecycle.
+//
+// 1. Sets status to "pending" (running).
+// 2. Executes the command with optional timeout.
+// 3. Updates status to "success" or "failure" based on exit code.
+//
+// It terminates the process using os.Exit with the command's exit code,
+// ensuring the CI job reflects the actual command result.
 func execute(cfg config.Config) error {
 	ctx := context.Background()
 	client, commit := initForge(cfg.Forge, cfg.Commit, cfg.Silent)

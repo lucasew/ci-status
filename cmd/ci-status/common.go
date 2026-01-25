@@ -17,9 +17,15 @@ func isCI(silent bool) bool {
 	return true
 }
 
-// initForge centralizes the logic for detecting and initializing the forge
-// client and the commit SHA. It returns a nil client if not in a CI
-// environment or if detection fails.
+// initForge handles the common initialization logic for forge interactions.
+//
+// It performs the following steps:
+// 1. Checks if running in a CI environment (unless silent).
+// 2. Detects the appropriate ForgeClient.
+// 3. Detects the target commit SHA.
+//
+// It returns the client and commit SHA. If any step fails (and isn't fatal),
+// it may return a nil client or empty commit, logging warnings unless silent.
 func initForge(forgeOverride, commitOverride string, silent bool) (forge.ForgeClient, string) {
 	if !isCI(silent) {
 		return nil, ""

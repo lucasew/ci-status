@@ -8,15 +8,12 @@ import (
 )
 
 // DetectClient attempts to detect and initialize a ForgeClient based on the repository remote URL.
-// It iterates through available strategies (GitHub, Generic).
+//
+// It uses a strategy pattern, iterating through available loaders (GitHub, Generic)
+// until one successfully claims the URL.
+//
+// If 'overrideForge' is provided (e.g. "github"), it prioritizes that strategy.
 func DetectClient(overrideForge string) (ForgeClient, error) {
-	// If forge is explicitly set to github, we try GitHub strategy only?
-	// The override logic in original code was checking "github" -> ParseGitHubRemote.
-
-	// First get the remote URL.
-	// For "GitHub" override, we still need the URL to get owner/repo unless we want to force something.
-	// But `DetectRepoInfo` previously did parsing.
-
 	originURL, err := getOriginURL()
 	if err != nil {
 		return nil, err
@@ -46,6 +43,10 @@ func DetectClient(overrideForge string) (ForgeClient, error) {
 	return nil, fmt.Errorf("no supported forge detected for url: %s", originURL)
 }
 
+// getOriginURL retrieves the remote URL from git.
+//
+// It first attempts to get the URL for the 'origin' remote.
+// If that fails (e.g. detached HEAD or no origin), it falls back to the 'upstream' remote.
 func getOriginURL() (string, error) {
 	cmd := exec.Command("git", "remote", "get-url", "origin")
 	out, err := cmd.Output()
@@ -63,7 +64,10 @@ func getOriginURL() (string, error) {
 	return "", fmt.Errorf("could not determine remote url for 'origin' or 'upstream'")
 }
 
-// Deprecated: Logic moved to DetectClient and strategies
+// DetectForge attempts to identify the forge type from git remotes.
+//
+// Deprecated: This logic has been moved to DetectClient and specific ForgeLoaders.
+// New code should use DetectClient instead.
 func DetectForge(override string) (string, error) {
 	if override != "" {
 		return override, nil
@@ -89,6 +93,12 @@ func DetectForge(override string) (string, error) {
 	return "", fmt.Errorf("could not detect forge")
 }
 
+// DetectCommit determines the commit SHA to report status for.
+//
+// It resolves the commit in the following order of precedence:
+// 1. Explicit override (CLI flag)
+// 2. CI environment variables (GITHUB_SHA, CI_COMMIT_SHA, BITBUCKET_COMMIT)
+// 3. Local git HEAD (via 'git rev-parse HEAD')
 func DetectCommit(override string) (string, error) {
 	if override != "" {
 		return override, nil
@@ -114,6 +124,8 @@ func DetectCommit(override string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+// DetectURL returns the target URL for the status description.
+// Currently only supports explicit override via CLI flag.
 func DetectURL(override string) string {
     if override != "" {
         return override
@@ -122,7 +134,10 @@ func DetectURL(override string) string {
     return ""
 }
 
-// Deprecated: Use DetectClient strategies instead
+// DetectRepoInfo attempts to parse owner and repo from the remote URL.
+//
+// Deprecated: Use DetectClient strategies instead. This function relies on
+// specific forge implementation details that should be encapsulated.
 func DetectRepoInfo() (string, string, error) {
 	// This function is kept for backward compatibility if needed,
     // but the implementation logic is now in strategies.
