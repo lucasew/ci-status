@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+// GitHubClient implements the ForgeClient interface for GitHub and compatible APIs.
+// It handles authentication via personal access tokens and status updates.
 type GitHubClient struct {
 	Token   string
 	Owner   string
@@ -20,6 +22,7 @@ type GitHubClient struct {
 	BaseURL string
 }
 
+// NewGitHubClient creates a new instance of GitHubClient.
 func NewGitHubClient(token, owner, repo string) *GitHubClient {
 	return &GitHubClient{
 		Token: token,
@@ -28,6 +31,9 @@ func NewGitHubClient(token, owner, repo string) *GitHubClient {
 	}
 }
 
+// SetStatus updates the commit status on GitHub.
+// Note: It automatically maps the 'running' state to 'pending' because GitHub's API
+// does not natively support a 'running' state for commit statuses (only Checks API does).
 func (c *GitHubClient) SetStatus(ctx context.Context, opts StatusOpts) error {
 	baseURL := c.BaseURL
 	if baseURL == "" {
@@ -38,10 +44,9 @@ func (c *GitHubClient) SetStatus(ctx context.Context, opts StatusOpts) error {
 	url := fmt.Sprintf("%s/repos/%s/%s/statuses/%s", baseURL, c.Owner, c.Repo, opts.Commit)
 
 	state := string(opts.State)
-	// GitHub API specifically treats "running" as "pending" with a description,
-	// but only if we are talking to actual GitHub. For compatible forges (Gitea),
-	// they might support "running" or we might want to stick to "pending".
-	// The existing logic checks for prefix https://api.github.com.
+	// GitHub API treats "running" as "pending". We map it here unless we are targeting
+	// a different forge that might support it (checked via BaseURL).
+	// If BaseURL is default (empty) or specifically GitHub API, we map to pending.
 	if opts.State == StateRunning && (strings.HasPrefix(url, "https://api.github.com") || c.BaseURL == "") {
 		state = string(StatePending)
 	}
@@ -65,7 +70,7 @@ func (c *GitHubClient) SetStatus(ctx context.Context, opts StatusOpts) error {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// Sanitize token to prevent header injection.
+	// Sanitize token to prevent header injection vulnerabilities.
 	sanitizedToken := strings.NewReplacer("\n", "", "\r", "").Replace(c.Token)
 	if sanitizedToken != "" {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sanitizedToken))
@@ -73,6 +78,7 @@ func (c *GitHubClient) SetStatus(ctx context.Context, opts StatusOpts) error {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 
+	// Use a custom client with timeout to prevent hanging requests.
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -90,6 +96,8 @@ func (c *GitHubClient) SetStatus(ctx context.Context, opts StatusOpts) error {
 	return nil
 }
 
+// LoadGitHub is a strategy to initialize a GitHubClient if the URL matches a GitHub repository.
+// It requires the GITHUB_TOKEN environment variable to be set.
 func LoadGitHub(url string) ForgeClient {
 	owner, repo, err := ParseGitHubRemote(url)
 	if err != nil {
@@ -97,32 +105,23 @@ func LoadGitHub(url string) ForgeClient {
 	}
 	token := os.Getenv("GITHUB_TOKEN")
 	if token == "" {
-		// Log warning? For now just return nil or let it fail later?
-		// The requirement is "nil se não encaixa".
-		// If it parses as GitHub, it "fits". But if we have no token, we can't use it.
-		// However, returning nil might trigger fallback.
-		// If it IS github.com, we shouldn't fallback to generic.
-		// But if no token, we can't do anything.
-		// Let's return nil if no token, effectively disabling it.
-		// Or we return a client that will fail later.
-		// Based on `run.go` logic: if token missing -> noop.
-		// So we should probably return nil here if we want noop.
+		// If the token is missing, we cannot interact with the API, so we return nil.
 		return nil
 	}
 	return NewGitHubClient(token, owner, repo)
 }
 
+// ParseGitHubRemote extracts the owner and repository from a GitHub remote URL.
+// It supports standard HTTPS, SSH, and token-embedded HTTPS formats.
+// Supported formats:
+// - https://github.com/owner/repo.git
+// - git@github.com:owner/repo.git
+// - ssh://git@github.com/owner/repo.git
 func ParseGitHubRemote(remoteURL string) (owner, repo string, err error) {
-	// Supports:
-	// https://github.com/owner/repo.git
-	// https://github.com/owner/repo
-	// git@github.com:owner/repo.git
-	// https://x-access-token:...@github.com/owner/repo.git
-
 	remoteURL = strings.TrimSuffix(remoteURL, ".git")
 	remoteURL = strings.TrimSuffix(remoteURL, "/")
 
-	// Try parsing as URL first to handle auth and other schemes robustly
+	// Try parsing as URL first to handle auth and other schemes robustly.
 	if u, err := url.Parse(remoteURL); err == nil {
 		if u.Host == "github.com" {
 			path := strings.TrimPrefix(u.Path, "/")
@@ -133,9 +132,7 @@ func ParseGitHubRemote(remoteURL string) (owner, repo string, err error) {
 		}
 	}
 
-	// Fallback/Legacy handling for formats url.Parse might misinterpret (like git@github.com:...)
-	// although url.Parse usually fails or puts it in path for SCP-like syntax.
-
+	// Fallback handling for formats that url.Parse might misinterpret (e.g., SCP-like syntax).
 	if strings.HasPrefix(remoteURL, "https://github.com/") {
 		parts := strings.Split(strings.TrimPrefix(remoteURL, "https://github.com/"), "/")
 		if len(parts) != 2 {

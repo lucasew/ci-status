@@ -9,11 +9,14 @@ import (
 	"time"
 )
 
+// Executor is responsible for running system commands with configured I/O streams.
+// By default, it writes to os.Stdout and os.Stderr.
 type Executor struct {
 	Stdout io.Writer
 	Stderr io.Writer
 }
 
+// New creates a default Executor writing to standard output and error.
 func New() *Executor {
 	return &Executor{
 		Stdout: os.Stdout,
@@ -21,6 +24,15 @@ func New() *Executor {
 	}
 }
 
+// Run executes a command with the specified arguments and an optional timeout.
+// It returns the command's exit code and an error if one occurred.
+//
+// Exit Codes:
+// - 0: Command succeeded.
+// - 124: Command timed out.
+// - Other: Command failed with that exit code.
+//
+// If the command fails to start, it returns 0 and an error.
 func (e *Executor) Run(ctx context.Context, timeout time.Duration, command string, args []string) (int, error) {
 	var cmd *exec.Cmd
 
@@ -41,6 +53,7 @@ func (e *Executor) Run(ctx context.Context, timeout time.Duration, command strin
 	err := cmd.Wait()
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
+			// 124 is a standard exit code for timeout in GNU coreutils
 			return 124, fmt.Errorf("command timed out")
 		}
 		if exitError, ok := err.(*exec.ExitError); ok {
