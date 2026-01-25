@@ -9,15 +9,25 @@ import (
 	"ci-status/internal/forge"
 )
 
+// SetConfig holds the configuration for the 'set' command, which manually
+// reports a specific status without running a wrapped command.
 type SetConfig struct {
+	// ContextName is the status identifier (e.g., "lint", "deploy").
 	ContextName string
-	State       string
+	// State is the target status (pending, success, failure, error).
+	State string
+	// Description is a short text explaining the status.
 	Description string
-	URL         string
-	Commit      string
-	PR          string
-	Forge       string
-	Silent      bool
+	// URL provides a link to further details (e.g., logs).
+	URL string
+	// Commit overrides the detected commit SHA.
+	Commit string
+	// PR overrides the detected PR number.
+	PR string
+	// Forge overrides the detected forge type.
+	Forge string
+	// Silent suppresses warning/error messages.
+	Silent bool
 }
 
 var setConfig SetConfig
