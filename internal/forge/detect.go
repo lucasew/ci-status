@@ -8,8 +8,16 @@ import (
 )
 
 // DetectClient attempts to identify the appropriate ForgeClient by analyzing the repository's remote URL.
-// It iterates through available strategies (e.g., GitHub, Generic) to find a match.
-// An optional overrideForge parameter can be used to prioritize a specific strategy (e.g., "github").
+// It implements a strategy pattern, iterating through available loaders (GitHub, Generic) to find a match.
+//
+// Behavior:
+// 1. Retrieves the 'origin' or 'upstream' remote URL.
+// 2. If 'overrideForge' is set (e.g. "github"), it tries that specific strategy first.
+// 3. Otherwise, it iterates through all registered strategies in precedence order.
+//
+// Returns:
+// - ForgeClient: An initialized client ready for API calls.
+// - error: If no supported forge is detected or if remote URL retrieval fails.
 func DetectClient(overrideForge string) (ForgeClient, error) {
 	originURL, err := getOriginURL()
 	if err != nil {
