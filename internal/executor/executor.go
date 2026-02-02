@@ -25,14 +25,20 @@ func New() *Executor {
 }
 
 // Run executes a command with the specified arguments and an optional timeout.
-// It returns the command's exit code and an error if one occurred.
+// It manages the command lifecycle, handling startup, execution, and timeout signals.
 //
-// Exit Codes:
-// - 0: Command succeeded.
-// - 124: Command timed out.
-// - Other: Command failed with that exit code.
+// Parameters:
+// - ctx: The parent context. If cancelled, the command will be killed.
+// - timeout: If > 0, creates a derived context with this timeout.
+// - command: The executable name or path.
+// - args: Arguments for the command.
 //
-// If the command fails to start, it returns 0 and an error.
+// Returns:
+// - int: The exit code of the command (0 for success, 124 for timeout, or actual exit code).
+// - error: An error object if the command failed to start or timed out.
+//
+// Note: If the command fails to start (e.g. executable not found), it returns exit code 0 and an error.
+// This distinguishes execution failures from application failures.
 func (e *Executor) Run(ctx context.Context, timeout time.Duration, command string, args []string) (int, error) {
 	var cmd *exec.Cmd
 

@@ -52,6 +52,20 @@ func init() {
 	Command.AddCommand(RunCmd)
 }
 
+// execute orchestrates the core logic of the 'run' command.
+//
+// Flow:
+// 1. Validates the CI environment and initializes the forge client (via initForge).
+// 2. Reports a 'pending' status to the forge (e.g., GitHub check run).
+// 3. Executes the user-specified command with a timeout context.
+// 4. Catches specific errors like timeouts (reporting 'error' status and exiting with 124).
+// 5. Reports the final status ('success' or 'failure') based on the command's exit code.
+// 6. Exits the process with the command's exit code.
+//
+// Side Effects:
+// - Makes HTTP requests to the forge API.
+// - Prints warnings/errors to stderr.
+// - Terminates the process using os.Exit (does not return).
 func execute(cfg config.Config) error {
 	ctx := context.Background()
 	client, commit := initForge(cfg.Forge, cfg.Commit, cfg.Silent)
