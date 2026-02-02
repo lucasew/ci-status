@@ -61,20 +61,7 @@ func executeSet(cfg SetConfig) error {
 		return nil
 	}
 
-	// 1. Detect Forge Client
-	client, err := forge.DetectClient(cfg.Forge)
-	if err != nil {
-		if !cfg.Silent {
-			fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
-		}
-		client = nil
-	}
-
-	// 2. Detect Commit
-	commit, err := forge.DetectCommit(cfg.Commit)
-	if err != nil && !cfg.Silent {
-		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
-	}
+	client, commit := initForge(cfg.Forge, cfg.Commit, cfg.Silent)
 
 	// 3. Set Status
 	if client != nil && commit != "" {
