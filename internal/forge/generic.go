@@ -58,7 +58,7 @@ func ParseGenericRemote(remoteURL string) (owner, repo string, err error) {
 		return "", "", err
 	}
 
-	path := strings.TrimPrefix(u.Path, "/")
+path := strings.TrimPrefix(path.Clean(u.Path), "/")
 	// path.Clean might be useful but strings.Split is sufficient if path is clean.
 	// u.Path from url.Parse should be decent, but let's be safe.
 	// Actually url.Parse doesn't clean path components (e.g. ..).
