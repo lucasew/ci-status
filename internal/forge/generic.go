@@ -58,13 +58,10 @@ func ParseGenericRemote(remoteURL string) (owner, repo string, err error) {
 		return "", "", err
 	}
 
-path := strings.TrimPrefix(path.Clean(u.Path), "/")
-	// path.Clean might be useful but strings.Split is sufficient if path is clean.
-	// u.Path from url.Parse should be decent, but let's be safe.
-	// Actually url.Parse doesn't clean path components (e.g. ..).
-	// But standard git urls shouldn't have .. usually.
+	// Remove leading slash from path
+	repoPath := strings.TrimPrefix(u.Path, "/")
 
-	parts := strings.Split(path, "/")
+	parts := strings.Split(repoPath, "/")
 	// Filter empty parts if any (e.g. double slashes)
 	var cleanParts []string
 	for _, p := range parts {
