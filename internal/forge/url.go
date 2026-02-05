@@ -9,7 +9,7 @@ import (
 // ParseRemoteURL parses a git remote URL into a standard *url.URL.
 // It handles standard URLs (http, https, ssh) and SCP-style URLs (git@host:path).
 // SCP-style URLs are converted to ssh://git@host/path before parsing.
-// The .git suffix is removed from the path.
+// The .git suffix is removed from the path, if present.
 func ParseRemoteURL(rawURL string) (*url.URL, error) {
 	if rawURL == "" {
 		return nil, fmt.Errorf("remote url cannot be empty")
