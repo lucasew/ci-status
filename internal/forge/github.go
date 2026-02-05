@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -118,44 +117,27 @@ func LoadGitHub(url string) ForgeClient {
 // - git@github.com:owner/repo.git
 // - ssh://git@github.com/owner/repo.git
 func ParseGitHubRemote(remoteURL string) (owner, repo string, err error) {
-	remoteURL = strings.TrimSuffix(remoteURL, ".git")
-	remoteURL = strings.TrimSuffix(remoteURL, "/")
+	u, err := ParseRemoteURL(remoteURL)
+	if err != nil {
+		return "", "", err
+	}
 
-	// Try parsing as URL first to handle auth and other schemes robustly.
-	if u, err := url.Parse(remoteURL); err == nil {
-		if u.Host == "github.com" {
-			path := strings.TrimPrefix(u.Path, "/")
-			parts := strings.Split(path, "/")
-			if len(parts) == 2 {
-				return parts[0], parts[1], nil
-			}
+	if u.Host != "github.com" && u.Host != "api.github.com" {
+		return "", "", fmt.Errorf("invalid github host: %s", u.Host)
+	}
+
+	path := strings.TrimPrefix(u.Path, "/")
+	parts := strings.Split(path, "/")
+	var cleanParts []string
+	for _, p := range parts {
+		if p != "" {
+			cleanParts = append(cleanParts, p)
 		}
 	}
 
-	// Fallback handling for formats that url.Parse might misinterpret (e.g., SCP-like syntax).
-	if strings.HasPrefix(remoteURL, "https://github.com/") {
-		parts := strings.Split(strings.TrimPrefix(remoteURL, "https://github.com/"), "/")
-		if len(parts) != 2 {
-			return "", "", fmt.Errorf("invalid https github url: %s", remoteURL)
-		}
-		return parts[0], parts[1], nil
+	if len(cleanParts) != 2 {
+		return "", "", fmt.Errorf("invalid github path: %s", u.Path)
 	}
 
-	if strings.HasPrefix(remoteURL, "git@github.com:") {
-		parts := strings.Split(strings.TrimPrefix(remoteURL, "git@github.com:"), "/")
-		if len(parts) != 2 {
-			return "", "", fmt.Errorf("invalid ssh github url: %s", remoteURL)
-		}
-		return parts[0], parts[1], nil
-	}
-
-	if strings.HasPrefix(remoteURL, "ssh://git@github.com/") {
-		parts := strings.Split(strings.TrimPrefix(remoteURL, "ssh://git@github.com/"), "/")
-		if len(parts) != 2 {
-			return "", "", fmt.Errorf("invalid ssh github url: %s", remoteURL)
-		}
-		return parts[0], parts[1], nil
-	}
-
-	return "", "", fmt.Errorf("unrecognized github url format: %s", remoteURL)
+	return cleanParts[0], cleanParts[1], nil
 }

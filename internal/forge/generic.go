@@ -2,7 +2,6 @@ package forge
 
 import (
 	"fmt"
-	"net/url"
 	"os"
 	"strings"
 )
@@ -17,8 +16,13 @@ func LoadGeneric(remoteURL string) ForgeClient {
 	}
 
 	// We need to determine the BaseURL.
-	// Assume Gitea/Forgejo compatible API at /api/v1
-	host, scheme := getHostAndScheme(remoteURL)
+	u, err := ParseRemoteURL(remoteURL)
+	if err != nil {
+		return nil
+	}
+	host := u.Host
+	scheme := u.Scheme
+
 	if host == "" {
 		return nil
 	}
@@ -35,71 +39,44 @@ func LoadGeneric(remoteURL string) ForgeClient {
 	}
 
 	client := NewGitHubClient(token, owner, repo)
+
+	// If scheme is SSH, assume HTTPS for API
+	if scheme == "ssh" {
+		scheme = "https"
+	}
+
 	client.BaseURL = fmt.Sprintf("%s://%s/api/v1", scheme, host)
 
 	return client
 }
 
-// getHostAndScheme extracts the host and scheme from the remote URL.
-// For SSH URLs, it assumes "https" as the API scheme.
-func getHostAndScheme(remoteURL string) (string, string) {
-	// Handle HTTP/HTTPS
-	if strings.HasPrefix(remoteURL, "http://") || strings.HasPrefix(remoteURL, "https://") {
-		u, err := url.Parse(remoteURL)
-		if err != nil {
-			return "", ""
-		}
-		return u.Host, u.Scheme
-	}
-
-	// Handle SSH (git@host:...) or (ssh://...)
-	if strings.HasPrefix(remoteURL, "ssh://") {
-		u, err := url.Parse(remoteURL)
-		if err != nil {
-			return "", ""
-		}
-		return u.Host, "https" // Assume HTTPS for API
-	}
-
-	// Scp-like: git@host:path
-	if strings.Contains(remoteURL, "@") && strings.Contains(remoteURL, ":") {
-		parts := strings.Split(remoteURL, "@")
-		if len(parts) > 1 {
-			domainPath := parts[1]
-			domainParts := strings.Split(domainPath, ":")
-			if len(domainParts) > 0 {
-				return domainParts[0], "https" // Assume HTTPS for API
-			}
-		}
-	}
-
-	return "", ""
-}
-
 // ParseGenericRemote extracts the owner and repository from a generic remote URL.
-// It normalizes SCP-like syntax (git@host:path) by replacing the first colon with a slash,
-// allowing consistent path splitting.
-// Security Note: This implementation aims to be robust against path traversal attempts
-// by strictly using the last two path segments as owner and repo.
+// It uses ParseRemoteURL to normalize and parse the URL, ensuring security and consistency.
 func ParseGenericRemote(remoteURL string) (owner, repo string, err error) {
-	remoteURL = strings.TrimSuffix(remoteURL, ".git")
-
-	cleanURL := remoteURL
-	// Handle scp-like syntax which uses ':' as separator
-	// e.g. git@github.com:owner/repo -> git@github.com/owner/repo
-	// We want to treat ':' as '/' if it's not part of the protocol scheme (://)
-	if idx := strings.Index(cleanURL, "://"); idx == -1 {
-		// No protocol scheme, assume ssh/scp-like
-		// Replace the FIRST ':' which separates host from path (or port?)
-		// git@host:owner/repo
-		cleanURL = strings.Replace(cleanURL, ":", "/", 1)
+	u, err := ParseRemoteURL(remoteURL)
+	if err != nil {
+		return "", "", err
 	}
 
-	parts := strings.FieldsFunc(cleanURL, func(r rune) bool { return r == '/' })
-	if len(parts) < 2 {
+	path := strings.TrimPrefix(u.Path, "/")
+	// path.Clean might be useful but strings.Split is sufficient if path is clean.
+	// u.Path from url.Parse should be decent, but let's be safe.
+	// Actually url.Parse doesn't clean path components (e.g. ..).
+	// But standard git urls shouldn't have .. usually.
+
+	parts := strings.Split(path, "/")
+	// Filter empty parts if any (e.g. double slashes)
+	var cleanParts []string
+	for _, p := range parts {
+		if p != "" {
+			cleanParts = append(cleanParts, p)
+		}
+	}
+
+	if len(cleanParts) < 2 {
 		return "", "", fmt.Errorf("cannot parse generic remote: %s", remoteURL)
 	}
 
 	// Taking the last two parts handles cases like ssh://host/group/subgroup/owner/repo
-	return parts[len(parts)-2], parts[len(parts)-1], nil
+	return cleanParts[len(cleanParts)-2], cleanParts[len(cleanParts)-1], nil
 }
