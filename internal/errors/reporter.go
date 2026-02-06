@@ -2,12 +2,8 @@ package errors
 
 import (
 	"fmt"
-	"io"
-	"os"
+	"log/slog"
 )
-
-// Writer is the destination for error logs. Defaults to os.Stderr.
-var Writer io.Writer = os.Stderr
 
 // Report reports an error to the centralized monitoring system.
 // It logs to stderr as a fallback.
@@ -17,7 +13,7 @@ func Report(err error) {
 	}
 	// Placeholder for Sentry integration
 	// sentry.CaptureException(err)
-	fmt.Fprintf(Writer, "Error: %v\n", err)
+	slog.Error("error reported", "err", err)
 }
 
 // Warn logs a warning message to stderr.
@@ -26,10 +22,11 @@ func Warn(err error) {
 	if err == nil {
 		return
 	}
-	fmt.Fprintf(Writer, "Warning: %v\n", err)
+	slog.Warn("warning reported", "err", err)
 }
 
 // Warnf logs a formatted warning message.
 func Warnf(format string, args ...interface{}) {
-	fmt.Fprintf(Writer, "Warning: "+format+"\n", args...)
+	msg := fmt.Sprintf(format, args...)
+	slog.Warn(msg)
 }
