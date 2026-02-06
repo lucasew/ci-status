@@ -67,33 +67,6 @@ func getOriginURL() (string, error) {
 	return "", fmt.Errorf("could not determine remote url for 'origin' or 'upstream'")
 }
 
-// DetectForge identifies the forge type from the git remote URL or an override.
-// @deprecated: Logic moved to DetectClient and specific ForgeLoader strategies.
-func DetectForge(override string) (string, error) {
-	if override != "" {
-		return override, nil
-	}
-
-	cmd := exec.Command("git", "remote", "-v")
-	out, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-	output := string(out)
-
-	if strings.Contains(output, "github.com") {
-		return "github", nil
-	}
-	if strings.Contains(output, "gitlab.com") {
-		return "gitlab", nil
-	}
-	if strings.Contains(output, "bitbucket.org") {
-		return "bitbucket", nil
-	}
-
-	return "", fmt.Errorf("could not detect forge")
-}
-
 // DetectCommit resolves the commit SHA to be reported.
 // It prioritizes the override value, then CI environment variables (GITHUB_SHA, CI_COMMIT_SHA, BITBUCKET_COMMIT),
 // and finally falls back to the current git HEAD.
@@ -120,29 +93,4 @@ func DetectCommit(override string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(out)), nil
-}
-
-// DetectURL returns the target URL for the status description.
-// Currently, it acts as a passthrough for the override value, as there is no automatic detection logic implemented.
-func DetectURL(override string) string {
-	if override != "" {
-		return override
-	}
-	return ""
-}
-
-// DetectRepoInfo attempts to extract the owner and repository name from the remote URL.
-// @deprecated: Use DetectClient strategies instead. This function is retained for backward compatibility.
-func DetectRepoInfo() (string, string, error) {
-	originURL, err := getOriginURL()
-	if err != nil {
-		return "", "", err
-	}
-
-	owner, repo, err := ParseGitHubRemote(originURL)
-	if err == nil {
-		return owner, repo, nil
-	}
-
-	return ParseGenericRemote(originURL)
 }

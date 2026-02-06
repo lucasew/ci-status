@@ -1,0 +1,1 @@
+- 2026-02-06: Remove unused exported functions that are marked as deprecated if they have no internal usage.
