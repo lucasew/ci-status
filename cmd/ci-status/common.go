@@ -1,9 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
+	reporter "ci-status/internal/errors"
 	"ci-status/internal/forge"
 )
 
@@ -13,7 +13,7 @@ import (
 func isCI(silent bool) bool {
 	if os.Getenv("CI") == "" {
 		if !silent {
-			fmt.Fprintln(os.Stderr, "Warning: CI environment variable not set, skipping status reporting")
+			reporter.Warnf("CI environment variable not set, skipping status reporting")
 		}
 		return false
 	}
@@ -31,7 +31,7 @@ func initForge(forgeOverride, commitOverride string, silent bool) (forge.ForgeCl
 	client, err := forge.DetectClient(forgeOverride)
 	if err != nil {
 		if !silent {
-			fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+			reporter.Warn(err)
 		}
 		return nil, ""
 	}
@@ -39,7 +39,7 @@ func initForge(forgeOverride, commitOverride string, silent bool) (forge.ForgeCl
 	commit, err := forge.DetectCommit(commitOverride)
 	if err != nil {
 		if !silent {
-			fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+			reporter.Warn(err)
 		}
 		// Allow returning a client even if commit detection fails,
 		// but the commit string will be empty.
