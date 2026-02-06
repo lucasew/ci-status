@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"ci-status/internal/config"
+	reporter "ci-status/internal/errors"
 	"ci-status/internal/executor"
 	"ci-status/internal/forge"
 )
@@ -80,7 +81,7 @@ func execute(cfg config.Config) error {
 			Description: cfg.PendingDesc,
 			TargetURL:   cfg.URL,
 		}); err != nil && !cfg.Silent {
-			fmt.Fprintf(os.Stderr, "Warning: failed to set pending status: %v\n", err)
+			reporter.Warnf("failed to set pending status: %v", err)
 		}
 	}
 
@@ -91,15 +92,17 @@ func execute(cfg config.Config) error {
     // Handle timeout specifically
     if err != nil && err.Error() == "command timed out" {
         if client != nil && commit != "" {
-            _ = client.SetStatus(ctx, forge.StatusOpts{
+            if statusErr := client.SetStatus(ctx, forge.StatusOpts{
                 Commit:      commit,
                 Context:     cfg.ContextName,
                 State:       forge.StateError,
                 Description: "Timed out",
                 TargetURL:   cfg.URL,
-            })
+            }); statusErr != nil {
+                reporter.Report(statusErr)
+            }
         }
-        fmt.Fprintln(os.Stderr, "Error: command timed out")
+        reporter.Report(fmt.Errorf("command timed out"))
         os.Exit(124)
     }
 
@@ -124,14 +127,14 @@ func execute(cfg config.Config) error {
 			TargetURL:   cfg.URL,
 		})
 		if err != nil && !cfg.Silent {
-			fmt.Fprintf(os.Stderr, "Warning: failed to set final status: %v\n", err)
+			reporter.Warnf("failed to set final status: %v", err)
 		}
 	}
 
 	// 7. Exit
 	if err != nil && exitCode == 0 {
 		// If there was an error running the command but not exit code (e.g. start failed)
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		reporter.Report(err)
 		os.Exit(1)
 	}
 	os.Exit(exitCode)

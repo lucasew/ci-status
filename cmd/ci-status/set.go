@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	reporter "ci-status/internal/errors"
 	"ci-status/internal/forge"
 )
 
@@ -65,7 +66,7 @@ func executeSet(cfg SetConfig) error {
 	client, err := forge.DetectClient(cfg.Forge)
 	if err != nil {
 		if !cfg.Silent {
-			fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+			reporter.Warn(err)
 		}
 		client = nil
 	}
@@ -73,7 +74,7 @@ func executeSet(cfg SetConfig) error {
 	// 2. Detect Commit
 	commit, err := forge.DetectCommit(cfg.Commit)
 	if err != nil && !cfg.Silent {
-		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+		reporter.Warn(err)
 	}
 
 	// 3. Set Status
@@ -87,7 +88,7 @@ func executeSet(cfg SetConfig) error {
 		})
 		if err != nil {
 			if !cfg.Silent {
-				fmt.Fprintf(os.Stderr, "Error: failed to set status: %v\n", err)
+				reporter.Report(fmt.Errorf("failed to set status: %w", err))
 			}
 			return err
 		}

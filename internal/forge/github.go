@@ -11,6 +11,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	reporter "ci-status/internal/errors"
 )
 
 // GitHubClient implements the ForgeClient interface for GitHub and compatible APIs.
@@ -85,11 +87,16 @@ func (c *GitHubClient) SetStatus(ctx context.Context, opts StatusOpts) error {
 		return fmt.Errorf("failed to execute request: %w", err)
 	}
 	defer func() {
-		_ = resp.Body.Close()
+		if err := resp.Body.Close(); err != nil {
+			reporter.Report(err)
+		}
 	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return fmt.Errorf("github api error: %s - (failed to read body: %v)", resp.Status, readErr)
+		}
 		return fmt.Errorf("github api error: %s - %s", resp.Status, string(respBody))
 	}
 
