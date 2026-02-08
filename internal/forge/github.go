@@ -127,6 +127,12 @@ func ParseGitHubRemote(remoteURL string) (owner, repo string, err error) {
 			path := strings.TrimPrefix(u.Path, "/")
 			parts := strings.Split(path, "/")
 			if len(parts) == 2 {
+				if err := validateRepoName(parts[0]); err != nil {
+					return "", "", err
+				}
+				if err := validateRepoName(parts[1]); err != nil {
+					return "", "", err
+				}
 				return parts[0], parts[1], nil
 			}
 		}
@@ -138,6 +144,12 @@ func ParseGitHubRemote(remoteURL string) (owner, repo string, err error) {
 		if len(parts) != 2 {
 			return "", "", fmt.Errorf("invalid https github url: %s", remoteURL)
 		}
+		if err := validateRepoName(parts[0]); err != nil {
+			return "", "", err
+		}
+		if err := validateRepoName(parts[1]); err != nil {
+			return "", "", err
+		}
 		return parts[0], parts[1], nil
 	}
 
@@ -146,6 +158,12 @@ func ParseGitHubRemote(remoteURL string) (owner, repo string, err error) {
 		if len(parts) != 2 {
 			return "", "", fmt.Errorf("invalid ssh github url: %s", remoteURL)
 		}
+		if err := validateRepoName(parts[0]); err != nil {
+			return "", "", err
+		}
+		if err := validateRepoName(parts[1]); err != nil {
+			return "", "", err
+		}
 		return parts[0], parts[1], nil
 	}
 
@@ -153,6 +171,12 @@ func ParseGitHubRemote(remoteURL string) (owner, repo string, err error) {
 		parts := strings.Split(strings.TrimPrefix(remoteURL, "ssh://git@github.com/"), "/")
 		if len(parts) != 2 {
 			return "", "", fmt.Errorf("invalid ssh github url: %s", remoteURL)
+		}
+		if err := validateRepoName(parts[0]); err != nil {
+			return "", "", err
+		}
+		if err := validateRepoName(parts[1]); err != nil {
+			return "", "", err
 		}
 		return parts[0], parts[1], nil
 	}

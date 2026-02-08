@@ -101,5 +101,15 @@ func ParseGenericRemote(remoteURL string) (owner, repo string, err error) {
 	}
 
 	// Taking the last two parts handles cases like ssh://host/group/subgroup/owner/repo
-	return parts[len(parts)-2], parts[len(parts)-1], nil
+	owner = parts[len(parts)-2]
+	repo = parts[len(parts)-1]
+
+	if err := validateRepoName(owner); err != nil {
+		return "", "", fmt.Errorf("invalid owner in generic remote: %w", err)
+	}
+	if err := validateRepoName(repo); err != nil {
+		return "", "", fmt.Errorf("invalid repo in generic remote: %w", err)
+	}
+
+	return owner, repo, nil
 }
