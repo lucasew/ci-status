@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
 	"ci-status/internal/forge"
+	"github.com/spf13/cobra"
 )
 
 // SetConfig holds the configuration for the 'set' command, which manually
@@ -92,10 +92,10 @@ func executeSet(cfg SetConfig) error {
 			return err
 		}
 	} else {
-        if !cfg.Silent {
-            fmt.Fprintln(os.Stderr, "Noop: Forge client or commit not available")
-        }
-    }
+		if !cfg.Silent {
+			fmt.Fprintln(os.Stderr, "Noop: Forge client or commit not available")
+		}
+	}
 
 	return nil
 }

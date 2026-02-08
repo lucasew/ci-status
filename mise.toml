@@ -2,14 +2,41 @@
 go = "1.25.5"
 golangci-lint = "latest"
 
+[tasks."install:go"]
+run = "go mod download"
+
+[tasks.install]
+depends = ["install:*"]
+
+[tasks."codegen:go"]
+run = "go generate ./..."
+
+[tasks.codegen]
+depends = ["codegen:*"]
+
+[tasks."lint:go"]
+run = "golangci-lint run"
+
 [tasks.lint]
-description = "Run linter"
-run = "go run ./cmd/ci-status run lint -- golangci-lint run"
+depends = ["lint:*"]
+
+[tasks."test:go"]
+run = "go test ./..."
 
 [tasks.test]
-description = "Run tests"
-run = "go run ./cmd/ci-status run test -- go test ./..."
+depends = ["test:*"]
+
+[tasks."fmt:go"]
+run = "go fmt ./..."
+
+[tasks.fmt]
+depends = ["fmt:*"]
+
+[tasks."build:go"]
+run = "go build -v -o ci-status ./cmd/ci-status"
+
+[tasks.build]
+depends = ["build:*"]
 
 [tasks.ci]
-description = "Run linter and tests"
 depends = ["lint", "test"]

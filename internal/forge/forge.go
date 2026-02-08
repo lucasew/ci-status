@@ -19,21 +19,21 @@ const (
 	// StateFailure indicates the task failed (non-zero exit code).
 	StateFailure State = "failure"
 	// StateError indicates a configuration or runtime error prevented the task from running properly.
-	StateError   State = "error"
+	StateError State = "error"
 )
 
 // StatusOpts encapsulates the parameters required to set a commit status.
 type StatusOpts struct {
 	// Commit is the SHA-1 hash of the commit to update.
-	Commit      string
+	Commit string
 	// Context is the label that differentiates this status check (e.g., "ci/lint").
-	Context     string
+	Context string
 	// State is the current status of the task.
-	State       State
+	State State
 	// Description is a short, human-readable summary of the status.
 	Description string
 	// TargetURL is an optional link to the build details (e.g., CI logs).
-	TargetURL   string
+	TargetURL string
 }
 
 // ForgeClient defines the interface for interacting with a Git forge (GitHub, GitLab, Gitea, etc.).

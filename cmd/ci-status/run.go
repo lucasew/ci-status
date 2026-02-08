@@ -2,14 +2,14 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"errors"
+	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
 	"ci-status/internal/config"
 	"ci-status/internal/executor"
 	"ci-status/internal/forge"
+	"github.com/spf13/cobra"
 )
 
 var runConfig config.Config
@@ -23,16 +23,16 @@ var RunCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		runConfig.ContextName = args[0]
 
-        dashIdx := cmd.ArgsLenAtDash()
+		dashIdx := cmd.ArgsLenAtDash()
 
-        if dashIdx == -1 || dashIdx >= len(args) {
-        	return ErrCommandMissing
-        }
+		if dashIdx == -1 || dashIdx >= len(args) {
+			return ErrCommandMissing
+		}
 
-        runConfig.Command = args[dashIdx]
-        if len(args) > dashIdx+1 {
-            runConfig.Args = args[dashIdx+1:]
-        }
+		runConfig.Command = args[dashIdx]
+		if len(args) > dashIdx+1 {
+			runConfig.Args = args[dashIdx+1:]
+		}
 
 		return execute(runConfig)
 	},
@@ -88,20 +88,20 @@ func execute(cfg config.Config) error {
 	exec := executor.New()
 	exitCode, err := exec.Run(ctx, cfg.Timeout, cfg.Command, cfg.Args)
 
-    // Handle timeout specifically
-    if err != nil && err.Error() == "command timed out" {
-        if client != nil && commit != "" {
-            _ = client.SetStatus(ctx, forge.StatusOpts{
-                Commit:      commit,
-                Context:     cfg.ContextName,
-                State:       forge.StateError,
-                Description: "Timed out",
-                TargetURL:   cfg.URL,
-            })
-        }
-        fmt.Fprintln(os.Stderr, "Error: command timed out")
-        os.Exit(124)
-    }
+	// Handle timeout specifically
+	if err != nil && err.Error() == "command timed out" {
+		if client != nil && commit != "" {
+			_ = client.SetStatus(ctx, forge.StatusOpts{
+				Commit:      commit,
+				Context:     cfg.ContextName,
+				State:       forge.StateError,
+				Description: "Timed out",
+				TargetURL:   cfg.URL,
+			})
+		}
+		fmt.Fprintln(os.Stderr, "Error: command timed out")
+		os.Exit(124)
+	}
 
 	// 6. Set Final Status
 	if client != nil && commit != "" {

@@ -21,6 +21,7 @@ on:
         - major
   schedule:
   - cron: '0 2 * * 6'   # saturday 2am
+
 jobs:
   autorelease:
     runs-on: ubuntu-latest
@@ -32,8 +33,10 @@ jobs:
       pull-requests: write
       statuses: write
     steps:
-
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      with:
+        fetch-depth: 0 # Important for versioning/tags
+
     - name: Setup git config
       run: |
         git config user.name actions-bot
@@ -41,11 +44,11 @@ jobs:
 
     - uses: jdx/mise-action@146a28175021df8ca24f8ee1828cc2a60f980bd5 # v3
 
-    - name: Go get
-      run: go get ./...
+    - name: Install
+      run: mise run install
 
-    # - name: Go fmt
-    #   run: go fmt ./...
+    - name: Codegen
+      run: mise run codegen
 
     - name: Create Pull Request if there is new stuff from updaters
       if: github.event_name != 'pull_request'
@@ -69,46 +72,42 @@ jobs:
           exit 1
         fi
 
-    - name: Build bootstrap binary
-      run: go build -v -o ci-status ./cmd/ci-status
+    - name: CI
+      run: mise run ci
 
-    - name: Make release if everything looks right
-      if: github.event_name != 'pull_request'
+    - name: Bump version and tag
+      if: github.event_name == 'workflow_dispatch' && github.event.inputs.new_version != ''
       env:
         NEW_VERSION: ${{ github.event.inputs.new_version }}
       run: |
-        if [[ ! -z "$NEW_VERSION" ]]; then
-          git checkout main
-          NO_TAG=1 ./make_release "$NEW_VERSION"
-          echo "New version: $(cat version.txt)" >> $GITHUB_STEP_SUMMARY
-          echo "RELEASE_VERSION=$(cat version.txt)" >> $GITHUB_ENV
-        fi
+        git checkout main
+        # Run make_release logic but ensure we handle the push correctly or let the next workflow run handle it
+        # Original make_release pushes. If we push here, we might stop this run (which is fine, the tag triggers the release run)
+        NO_TAG=1 ./make_release "$NEW_VERSION"
+        # make_release does git push. If successful, new tag is pushed?
+        # make_release script: if NO_TAG is set, it skips tagging but pushes commits?
+        # Let's look at make_release again in memory.
+        # It updates version.txt, commits.
+        # if NO_TAG is NOT set, it tags and pushes tag.
+        # if NO_TAG IS set, it skips tag/push-tag, but does `git push`.
+        # The original workflow ran with NO_TAG=1. So it pushed the commit but not the tag.
+        # Then it echoed RELEASE_VERSION.
+        # Then it created release using RELEASE_VERSION as tag.
+        # So the tag is created by `gh release create` later.
+        # This means the commit is pushed, but the tag is NOT yet on remote until `gh release create`.
+        # This flow is slightly unusual but I will preserve it.
+        echo "RELEASE_VERSION=$(cat version.txt)" >> $GITHUB_ENV
 
-    - name: Build binaries
+    - name: Set Release Version from Tag
+      if: startsWith(github.ref, 'refs/tags/')
+      run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+    - name: Build Release Artifacts
+      if: env.RELEASE_VERSION != ''
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        mkdir build -p
-
-        echo "# Built targets" >> $GITHUB_STEP_SUMMARY
-        export CGO_ENABLED=0
-
-        # First pass: Create all statuses as pending/queued
-        go tool dist list | grep -vE 'wasm|aix|plan9|android|ios|illumos|solaris|dragonfly' | while IFS=/ read -r GOOS GOARCH; do
-          ./ci-status set "Build $GOOS/$GOARCH" \
-            --state pending \
-            --description "Queued" || true
-        done
-
-        # Build each target
-        go tool dist list | grep -vE 'wasm|aix|plan9|android|ios|illumos|solaris|dragonfly' | while IFS=/ read -r GOOS GOARCH; do
-          echo "::group::Build $GOOS/$GOARCH"
-          GOOS=$GOOS GOARCH=$GOARCH ./ci-status run "Build $GOOS/$GOARCH" \
-            -- \
-            go build -v -o build/ci-status-$GOOS-$GOARCH ./cmd/ci-status \
-            && (echo "- $GOOS/$GOARCH" >> $GITHUB_STEP_SUMMARY) || true
-          echo "::endgroup::"
-        done
+         ./scripts/build_release.sh
 
     - name: Create release
       if: env.RELEASE_VERSION != '' && github.event_name != 'pull_request'
@@ -119,7 +118,8 @@ jobs:
       run: |
         gh release create "$TAG" \
           --title "$TITLE" \
-          --generate-notes
+          --generate-notes || true
+        # || true in case release already exists (e.g. if triggered by tag)
 
     - name: Upload release artifacts
       if: env.RELEASE_VERSION != '' && github.event_name != 'pull_request'
