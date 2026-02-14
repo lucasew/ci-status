@@ -10,11 +10,17 @@
 **- Justification:** PR #23 was rejected in favor of PR #25. Documentation must provide context, explaining the **"Why"** (design decisions), **"Flow"** (high-level logic), and **"Side Effects"**. Comments that do not add understanding are considered noise.
 **- Files Affected:** `*.go`
 
-## IGNORE: Fragmentation of CLI Logic
+## IGNORE: "Clean Code" Refactoring of CLI Logic
 
-**- Pattern:** Refactoring linear procedural code in CLI commands (like `run.go` or `set.go`) into multiple small, single-use helper functions.
-**- Justification:** PRs #15 and #24 were closed. The project prefers **Locality of Behavior** for CLI command implementations. Fragmenting the logic forces the reader to jump between functions to understand the sequential flow. Helper functions should only be extracted when there is genuine reuse.
+**- Pattern:** Refactoring linear procedural code (splitting into helpers, abstracting `os.Exit`) solely for architectural purity or testability.
+**- Justification:** PRs #15 and #20 were rejected. The project prioritizes **Locality of Behavior**. Logic should remain linear and self-contained within the command. Fragmenting flow or abstracting exit logic forces the reader to jump around to understand the sequential execution.
 **- Files Affected:** `cmd/ci-status/*.go`
+
+## IGNORE: Misapplied Shared Logic
+
+**- Pattern:** Replacing explicit, context-specific logic in commands (like `set.go`) with generic shared helpers (like `initForge`) that introduce invalid constraints.
+**- Justification:** PR #24 was rejected. While DRY is generally good, helpers like `initForge` often enforce constraints (e.g., `isCI` checks) that are not valid for all contexts (e.g., `set` command supports manual/local execution).
+**- Files Affected:** `cmd/ci-status/set.go`, `cmd/ci-status/common.go`
 
 ## IGNORE: Toolchain Version Changes
 
