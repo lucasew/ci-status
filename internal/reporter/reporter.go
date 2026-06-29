@@ -2,7 +2,7 @@ package reporter
 
 import (
 	"fmt"
-	"os"
+	"log/slog"
 )
 
 // ReportError centralizes error reporting for the application.
@@ -13,7 +13,7 @@ func ReportError(err error) {
 		return
 	}
 	// In the future, this is where we would call Sentry.captureException(err)
-	fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+	slog.Error(err.Error())
 }
 
 // ReportWarning centralizes warning reporting.
@@ -21,5 +21,6 @@ func ReportWarning(err error, format string, args ...any) {
 	if err == nil {
 		return
 	}
-	fmt.Fprintf(os.Stderr, format, args...)
+	msg := fmt.Sprintf(format, args...)
+	slog.Warn(msg)
 }
