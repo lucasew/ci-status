@@ -1,1 +1,2 @@
 - 2026-02-06: Remove unused exported functions that are marked as deprecated if they have no internal usage.
+- 2026-06-29: Centralizing error reporting into a single module avoids scattered fmt.Fprintln calls and ensures consistent handling, opening the door for easy Sentry integration later.

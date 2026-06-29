@@ -2,14 +2,15 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"errors"
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
 	"ci-status/internal/config"
 	"ci-status/internal/executor"
 	"ci-status/internal/forge"
+	"ci-status/internal/reporter"
 )
 
 var runConfig config.Config
@@ -80,7 +81,7 @@ func execute(cfg config.Config) error {
 			Description: cfg.PendingDesc,
 			TargetURL:   cfg.URL,
 		}); err != nil && !cfg.Silent {
-			fmt.Fprintf(os.Stderr, "Warning: failed to set pending status: %v\n", err)
+			reporter.ReportWarning(err, "Warning: failed to set pending status: %v\n", err)
 		}
 	}
 
@@ -99,7 +100,7 @@ func execute(cfg config.Config) error {
                 TargetURL:   cfg.URL,
             })
         }
-        fmt.Fprintln(os.Stderr, "Error: command timed out")
+        reporter.ReportError(fmt.Errorf("command timed out"))
         os.Exit(124)
     }
 
@@ -124,14 +125,14 @@ func execute(cfg config.Config) error {
 			TargetURL:   cfg.URL,
 		})
 		if err != nil && !cfg.Silent {
-			fmt.Fprintf(os.Stderr, "Warning: failed to set final status: %v\n", err)
+			reporter.ReportWarning(err, "Warning: failed to set final status: %v\n", err)
 		}
 	}
 
 	// 7. Exit
 	if err != nil && exitCode == 0 {
 		// If there was an error running the command but not exit code (e.g. start failed)
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		reporter.ReportError(err)
 		os.Exit(1)
 	}
 	os.Exit(exitCode)

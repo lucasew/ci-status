@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"ci-status/internal/forge"
+	"ci-status/internal/reporter"
 )
 
 // isCI checks if the tool is running inside a Continuous Integration environment.
@@ -13,7 +14,7 @@ import (
 func isCI(silent bool) bool {
 	if os.Getenv("CI") == "" {
 		if !silent {
-			fmt.Fprintln(os.Stderr, "Warning: CI environment variable not set, skipping status reporting")
+			reporter.ReportWarning(fmt.Errorf("CI environment variable not set"), "Warning: CI environment variable not set, skipping status reporting\n")
 		}
 		return false
 	}
@@ -31,7 +32,7 @@ func initForge(forgeOverride, commitOverride string, silent bool) (forge.ForgeCl
 	client, err := forge.DetectClient(forgeOverride)
 	if err != nil {
 		if !silent {
-			fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+			reporter.ReportWarning(err, "Warning: %v\n", err)
 		}
 		return nil, ""
 	}
@@ -39,7 +40,7 @@ func initForge(forgeOverride, commitOverride string, silent bool) (forge.ForgeCl
 	commit, err := forge.DetectCommit(commitOverride)
 	if err != nil {
 		if !silent {
-			fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+			reporter.ReportWarning(err, "Warning: %v\n", err)
 		}
 		// Allow returning a client even if commit detection fails,
 		// but the commit string will be empty.
