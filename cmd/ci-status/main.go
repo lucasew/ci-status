@@ -1,9 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
+	"ci-status/internal/reporter"
 	"github.com/spf13/cobra"
 )
 
@@ -14,7 +14,7 @@ var Command = &cobra.Command{
 
 func main() {
 	if err := Command.Execute(); err != nil {
-		fmt.Println(err)
+		reporter.ReportError("execution failed", err)
 		os.Exit(1)
 	}
 }

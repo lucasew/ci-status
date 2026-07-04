@@ -2,11 +2,10 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"os"
 
-	"github.com/spf13/cobra"
 	"ci-status/internal/forge"
+	"ci-status/internal/reporter"
+	"github.com/spf13/cobra"
 )
 
 // SetConfig holds the configuration for the 'set' command, which manually
@@ -65,7 +64,7 @@ func executeSet(cfg SetConfig) error {
 	client, err := forge.DetectClient(cfg.Forge)
 	if err != nil {
 		if !cfg.Silent {
-			fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+			reporter.ReportWarning("failed to detect forge client", err)
 		}
 		client = nil
 	}
@@ -73,7 +72,7 @@ func executeSet(cfg SetConfig) error {
 	// 2. Detect Commit
 	commit, err := forge.DetectCommit(cfg.Commit)
 	if err != nil && !cfg.Silent {
-		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+		reporter.ReportWarning("failed to detect commit", err)
 	}
 
 	// 3. Set Status
@@ -87,15 +86,15 @@ func executeSet(cfg SetConfig) error {
 		})
 		if err != nil {
 			if !cfg.Silent {
-				fmt.Fprintf(os.Stderr, "Error: failed to set status: %v\n", err)
+				reporter.ReportError("failed to set status", err)
 			}
 			return err
 		}
 	} else {
-        if !cfg.Silent {
-            fmt.Fprintln(os.Stderr, "Noop: Forge client or commit not available")
-        }
-    }
+		if !cfg.Silent {
+			reporter.ReportInfo("Noop: Forge client or commit not available")
+		}
+	}
 
 	return nil
 }
