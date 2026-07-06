@@ -51,17 +51,12 @@ func DetectClient(overrideForge string) (ForgeClient, error) {
 // It attempts to read from the 'origin' remote first, falling back to 'upstream' if 'origin' is not defined.
 // This supports forked repositories where the upstream might be the primary source of truth.
 func getOriginURL() (string, error) {
-	cmd := exec.Command("git", "remote", "get-url", "origin")
-	out, err := cmd.Output()
-	if err == nil {
-		return strings.TrimSpace(string(out)), nil
-	}
-
-	// Fallback to checking 'upstream' remote if 'origin' fails
-	cmd = exec.Command("git", "remote", "get-url", "upstream")
-	out, err = cmd.Output()
-	if err == nil {
-		return strings.TrimSpace(string(out)), nil
+	for _, remote := range []string{"origin", "upstream"} {
+		cmd := exec.Command("git", "remote", "get-url", remote)
+		out, err := cmd.Output()
+		if err == nil {
+			return strings.TrimSpace(string(out)), nil
+		}
 	}
 
 	return "", fmt.Errorf("could not determine remote url for 'origin' or 'upstream'")
@@ -76,14 +71,10 @@ func DetectCommit(override string) (string, error) {
 	}
 
 	// CI Env vars
-	if sha := os.Getenv("GITHUB_SHA"); sha != "" {
-		return sha, nil
-	}
-	if sha := os.Getenv("CI_COMMIT_SHA"); sha != "" {
-		return sha, nil
-	}
-	if sha := os.Getenv("BITBUCKET_COMMIT"); sha != "" {
-		return sha, nil
+	for _, env := range []string{"GITHUB_SHA", "CI_COMMIT_SHA", "BITBUCKET_COMMIT"} {
+		if sha := os.Getenv(env); sha != "" {
+			return sha, nil
+		}
 	}
 
 	// Git fallback
