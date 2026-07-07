@@ -133,28 +133,23 @@ func ParseGitHubRemote(remoteURL string) (owner, repo string, err error) {
 	}
 
 	// Fallback handling for formats that url.Parse might misinterpret (e.g., SCP-like syntax).
-	if strings.HasPrefix(remoteURL, "https://github.com/") {
-		parts := strings.Split(strings.TrimPrefix(remoteURL, "https://github.com/"), "/")
-		if len(parts) != 2 {
-			return "", "", fmt.Errorf("invalid https github url: %s", remoteURL)
-		}
-		return parts[0], parts[1], nil
+	fallbackFormats := []struct {
+		prefix string
+		format string
+	}{
+		{"https://github.com/", "https github url"},
+		{"git@github.com:", "ssh github url"},
+		{"ssh://git@github.com/", "ssh github url"},
 	}
 
-	if strings.HasPrefix(remoteURL, "git@github.com:") {
-		parts := strings.Split(strings.TrimPrefix(remoteURL, "git@github.com:"), "/")
-		if len(parts) != 2 {
-			return "", "", fmt.Errorf("invalid ssh github url: %s", remoteURL)
+	for _, f := range fallbackFormats {
+		if strings.HasPrefix(remoteURL, f.prefix) {
+			parts := strings.Split(strings.TrimPrefix(remoteURL, f.prefix), "/")
+			if len(parts) != 2 {
+				return "", "", fmt.Errorf("invalid %s: %s", f.format, remoteURL)
+			}
+			return parts[0], parts[1], nil
 		}
-		return parts[0], parts[1], nil
-	}
-
-	if strings.HasPrefix(remoteURL, "ssh://git@github.com/") {
-		parts := strings.Split(strings.TrimPrefix(remoteURL, "ssh://git@github.com/"), "/")
-		if len(parts) != 2 {
-			return "", "", fmt.Errorf("invalid ssh github url: %s", remoteURL)
-		}
-		return parts[0], parts[1], nil
 	}
 
 	return "", "", fmt.Errorf("unrecognized github url format: %s", remoteURL)
