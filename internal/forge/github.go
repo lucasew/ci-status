@@ -124,8 +124,8 @@ func ParseGitHubRemote(remoteURL string) (owner, repo string, err error) {
 	// Try parsing as URL first to handle auth and other schemes robustly.
 	if u, err := url.Parse(remoteURL); err == nil {
 		if u.Host == "github.com" {
-			path := strings.TrimPrefix(u.Path, "/")
-			parts := strings.Split(path, "/")
+			urlPath := strings.TrimPrefix(u.Path, "/")
+			parts := strings.Split(urlPath, "/")
 			if len(parts) == 2 {
 				return parts[0], parts[1], nil
 			}
