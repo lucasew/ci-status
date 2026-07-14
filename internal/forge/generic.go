@@ -77,29 +77,35 @@ func getHostAndScheme(remoteURL string) (string, string) {
 }
 
 // ParseGenericRemote extracts the owner and repository from a generic remote URL.
-// It normalizes SCP-like syntax (git@host:path) by replacing the first colon with a slash,
-// allowing consistent path splitting.
-// Security Note: This implementation aims to be robust against path traversal attempts
-// by strictly using the last two path segments as owner and repo.
+// HTTP(S) and ssh:// URLs use the path only (host is never treated as owner).
+// SCP-like syntax (git@host:path) is normalized by replacing the first colon with a slash.
+// Owner and repo are always the last two path segments (supports nested groups).
 func ParseGenericRemote(remoteURL string) (owner, repo string, err error) {
 	remoteURL = strings.TrimSuffix(remoteURL, ".git")
+	remoteURL = strings.TrimSuffix(remoteURL, "/")
 
-	cleanURL := remoteURL
-	// Handle scp-like syntax which uses ':' as separator
-	// e.g. git@github.com:owner/repo -> git@github.com/owner/repo
-	// We want to treat ':' as '/' if it's not part of the protocol scheme (://)
-	if idx := strings.Index(cleanURL, "://"); idx == -1 {
-		// No protocol scheme, assume ssh/scp-like
-		// Replace the FIRST ':' which separates host from path (or port?)
-		// git@host:owner/repo
-		cleanURL = strings.Replace(cleanURL, ":", "/", 1)
+	var pathParts []string
+
+	if strings.Contains(remoteURL, "://") {
+		// http(s):// and ssh:// — parse with net/url so host/scheme stay out of the path.
+		u, parseErr := url.Parse(remoteURL)
+		if parseErr != nil {
+			return "", "", fmt.Errorf("cannot parse generic remote: %s", remoteURL)
+		}
+		pathParts = strings.FieldsFunc(u.Path, func(r rune) bool { return r == '/' })
+	} else {
+		// SCP-like: git@host:owner/repo → treat host:path separator as '/'.
+		cleanURL := strings.Replace(remoteURL, ":", "/", 1)
+		pathParts = strings.FieldsFunc(cleanURL, func(r rune) bool { return r == '/' })
+		// Drop user@host style first segment when present (e.g. "git@host").
+		if len(pathParts) > 0 && strings.Contains(pathParts[0], "@") {
+			pathParts = pathParts[1:]
+		}
 	}
 
-	parts := strings.FieldsFunc(cleanURL, func(r rune) bool { return r == '/' })
-	if len(parts) < 2 {
+	if len(pathParts) < 2 {
 		return "", "", fmt.Errorf("cannot parse generic remote: %s", remoteURL)
 	}
 
-	// Taking the last two parts handles cases like ssh://host/group/subgroup/owner/repo
-	return parts[len(parts)-2], parts[len(parts)-1], nil
+	return pathParts[len(pathParts)-2], pathParts[len(pathParts)-1], nil
 }
