@@ -31,9 +31,9 @@ func NewGitHubClient(token, owner, repo string) *GitHubClient {
 	}
 }
 
-// SetStatus updates the commit status on GitHub.
-// Note: It automatically maps the 'running' state to 'pending' because GitHub's API
-// does not natively support a 'running' state for commit statuses (only Checks API does).
+// SetStatus updates the commit status on GitHub and GitHub-compatible APIs
+// (GitHub Enterprise, Gitea/Forgejo via /api/v1). Commit status endpoints only
+// accept error|failure|pending|success, so StateRunning is always mapped to pending.
 func (c *GitHubClient) SetStatus(ctx context.Context, opts StatusOpts) error {
 	baseURL := c.BaseURL
 	if baseURL == "" {
@@ -41,13 +41,10 @@ func (c *GitHubClient) SetStatus(ctx context.Context, opts StatusOpts) error {
 	}
 	baseURL = strings.TrimSuffix(baseURL, "/")
 
-	url := fmt.Sprintf("%s/repos/%s/%s/statuses/%s", baseURL, c.Owner, c.Repo, opts.Commit)
+	statusURL := fmt.Sprintf("%s/repos/%s/%s/statuses/%s", baseURL, c.Owner, c.Repo, opts.Commit)
 
 	state := string(opts.State)
-	// GitHub API treats "running" as "pending". We map it here unless we are targeting
-	// a different forge that might support it (checked via BaseURL).
-	// If BaseURL is default (empty) or specifically GitHub API, we map to pending.
-	if opts.State == StateRunning && (strings.HasPrefix(url, "https://api.github.com") || c.BaseURL == "") {
+	if opts.State == StateRunning {
 		state = string(StatePending)
 	}
 
@@ -65,7 +62,7 @@ func (c *GitHubClient) SetStatus(ctx context.Context, opts StatusOpts) error {
 		return fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonBody))
+	req, err := http.NewRequestWithContext(ctx, "POST", statusURL, bytes.NewBuffer(jsonBody))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
