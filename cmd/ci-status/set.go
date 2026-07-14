@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
 	"ci-status/internal/forge"
+	"github.com/spf13/cobra"
 )
 
 // SetConfig holds the configuration for the 'set' command, which manually
@@ -43,7 +43,7 @@ var SetCmd = &cobra.Command{
 }
 
 func init() {
-	SetCmd.Flags().StringVar(&setConfig.State, "state", "pending", "State to set (pending, success, failure, error)")
+	SetCmd.Flags().StringVar(&setConfig.State, "state", "pending", "State to set (pending, success, failure, error, running)")
 	SetCmd.Flags().StringVar(&setConfig.Description, "description", "", "Description of the status")
 	SetCmd.Flags().StringVar(&setConfig.URL, "url", "", "Target URL")
 	SetCmd.Flags().StringVar(&setConfig.Commit, "commit", "", "Override commit SHA")
@@ -54,8 +54,25 @@ func init() {
 	Command.AddCommand(SetCmd)
 }
 
+// parseState maps a CLI --state value to a forge.State.
+// Unknown values fail early so the forge API never receives invalid statuses.
+func parseState(s string) (forge.State, error) {
+	state := forge.State(s)
+	switch state {
+	case forge.StatePending, forge.StateSuccess, forge.StateFailure, forge.StateError, forge.StateRunning:
+		return state, nil
+	default:
+		return "", fmt.Errorf("invalid state %q (want pending|success|failure|error|running)", s)
+	}
+}
+
 func executeSet(cfg SetConfig) error {
 	ctx := context.Background()
+
+	state, err := parseState(cfg.State)
+	if err != nil {
+		return err
+	}
 
 	if !isCI(cfg.Silent) {
 		return nil
@@ -81,7 +98,7 @@ func executeSet(cfg SetConfig) error {
 		err := client.SetStatus(ctx, forge.StatusOpts{
 			Commit:      commit,
 			Context:     cfg.ContextName,
-			State:       forge.State(cfg.State),
+			State:       state,
 			Description: cfg.Description,
 			TargetURL:   cfg.URL,
 		})
@@ -92,10 +109,10 @@ func executeSet(cfg SetConfig) error {
 			return err
 		}
 	} else {
-        if !cfg.Silent {
-            fmt.Fprintln(os.Stderr, "Noop: Forge client or commit not available")
-        }
-    }
+		if !cfg.Silent {
+			fmt.Fprintln(os.Stderr, "Noop: Forge client or commit not available")
+		}
+	}
 
 	return nil
 }
