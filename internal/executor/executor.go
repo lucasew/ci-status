@@ -2,12 +2,21 @@ package executor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"time"
 )
+
+// ErrTimeout is returned when a command exceeds its configured timeout.
+// Callers should use errors.Is to detect timeouts rather than comparing error strings.
+var ErrTimeout = errors.New("command timed out")
+
+// ExitCodeTimeout is the process exit code used when a command times out.
+// 124 matches the convention used by GNU timeout(1).
+const ExitCodeTimeout = 124
 
 // Executor is responsible for running system commands with configured I/O streams.
 // By default, it writes to os.Stdout and os.Stderr.
@@ -59,8 +68,7 @@ func (e *Executor) Run(ctx context.Context, timeout time.Duration, command strin
 	err := cmd.Wait()
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
-			// 124 is a standard exit code for timeout in GNU coreutils
-			return 124, fmt.Errorf("command timed out")
+			return ExitCodeTimeout, ErrTimeout
 		}
 		if exitError, ok := err.(*exec.ExitError); ok {
 			return exitError.ExitCode(), nil

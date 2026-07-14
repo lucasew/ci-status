@@ -3,6 +3,7 @@ package executor_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -46,10 +47,10 @@ func TestExecutorRun(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for timeout, got nil")
 	}
-	if err.Error() != "command timed out" {
-		t.Errorf("expected 'command timed out', got '%v'", err)
+	if !errors.Is(err, executor.ErrTimeout) {
+		t.Errorf("expected ErrTimeout, got %v", err)
 	}
-	if exitCode != 124 {
-		t.Errorf("expected exit code 124, got %d", exitCode)
+	if exitCode != executor.ExitCodeTimeout {
+		t.Errorf("expected exit code %d, got %d", executor.ExitCodeTimeout, exitCode)
 	}
 }
