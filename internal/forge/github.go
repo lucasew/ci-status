@@ -31,9 +31,33 @@ func NewGitHubClient(token, owner, repo string) *GitHubClient {
 	}
 }
 
+// GitHub commit-status field limits (REST: create a commit status).
+// Exceeding them makes the API return 422 and the whole status update fail.
+const (
+	maxStatusDescriptionLen = 140
+	maxStatusContextLen     = 100
+)
+
+// truncateRunes shortens s to at most max runes. When truncated, the last rune
+// is replaced with an ellipsis so callers can see the value was cut.
+func truncateRunes(s string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	if max == 1 {
+		return "…"
+	}
+	return string(runes[:max-1]) + "…"
+}
+
 // SetStatus updates the commit status on GitHub and GitHub-compatible APIs
 // (GitHub Enterprise, Gitea/Forgejo via /api/v1). Commit status endpoints only
 // accept error|failure|pending|success, so StateRunning is always mapped to pending.
+// Description is capped at 140 characters and context at 100 (GitHub API limits).
 func (c *GitHubClient) SetStatus(ctx context.Context, opts StatusOpts) error {
 	baseURL := c.BaseURL
 	if baseURL == "" {
@@ -50,8 +74,8 @@ func (c *GitHubClient) SetStatus(ctx context.Context, opts StatusOpts) error {
 
 	body := map[string]string{
 		"state":       state,
-		"description": opts.Description,
-		"context":     opts.Context,
+		"description": truncateRunes(opts.Description, maxStatusDescriptionLen),
+		"context":     truncateRunes(opts.Context, maxStatusContextLen),
 	}
 	if opts.TargetURL != "" {
 		body["target_url"] = opts.TargetURL

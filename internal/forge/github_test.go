@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"ci-status/internal/forge"
@@ -83,5 +84,92 @@ func TestSetStatusMapsRunningToPending(t *testing.T) {
 	}
 	if gotState != string(forge.StatePending) {
 		t.Fatalf("expected state %q, got %q", forge.StatePending, gotState)
+	}
+}
+
+// TestSetStatusTruncatesLongFields ensures description/context never exceed
+// GitHub's 140/100 character limits (API returns 422 otherwise).
+func TestSetStatusTruncatesLongFields(t *testing.T) {
+	var got map[string]string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("read body: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err := json.Unmarshal(body, &got); err != nil {
+			t.Errorf("unmarshal: %v", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+	}))
+	t.Cleanup(srv.Close)
+
+	longDesc := strings.Repeat("d", 200)
+	longCtx := strings.Repeat("c", 150)
+
+	client := forge.NewGitHubClient("token", "owner", "repo")
+	client.BaseURL = srv.URL
+
+	err := client.SetStatus(context.Background(), forge.StatusOpts{
+		Commit:      "abc123",
+		Context:     longCtx,
+		State:       forge.StateSuccess,
+		Description: longDesc,
+	})
+	if err != nil {
+		t.Fatalf("SetStatus: %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected request body")
+	}
+	if n := len([]rune(got["description"])); n != 140 {
+		t.Fatalf("description rune length = %d, want 140 (got %q)", n, got["description"])
+	}
+	if !strings.HasSuffix(got["description"], "…") {
+		t.Fatalf("description should end with ellipsis, got %q", got["description"])
+	}
+	if n := len([]rune(got["context"])); n != 100 {
+		t.Fatalf("context rune length = %d, want 100 (got %q)", n, got["context"])
+	}
+	if !strings.HasSuffix(got["context"], "…") {
+		t.Fatalf("context should end with ellipsis, got %q", got["context"])
+	}
+}
+
+func TestSetStatusKeepsShortFields(t *testing.T) {
+	var got map[string]string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("read body: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err := json.Unmarshal(body, &got); err != nil {
+			t.Errorf("unmarshal: %v", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+	}))
+	t.Cleanup(srv.Close)
+
+	client := forge.NewGitHubClient("token", "owner", "repo")
+	client.BaseURL = srv.URL
+
+	err := client.SetStatus(context.Background(), forge.StatusOpts{
+		Commit:      "abc123",
+		Context:     "ci/lint",
+		State:       forge.StateSuccess,
+		Description: "Passed",
+	})
+	if err != nil {
+		t.Fatalf("SetStatus: %v", err)
+	}
+	if got["description"] != "Passed" || got["context"] != "ci/lint" {
+		t.Fatalf("short fields changed: description=%q context=%q", got["description"], got["context"])
 	}
 }
