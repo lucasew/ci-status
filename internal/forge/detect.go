@@ -11,23 +11,29 @@ import (
 // It implements a strategy pattern, iterating through available loaders (GitHub, Generic) to find a match.
 //
 // Behavior:
-// 1. Retrieves the 'origin' or 'upstream' remote URL.
-// 2. If 'overrideForge' is set (e.g. "github"), it tries that specific strategy first.
-// 3. Otherwise, it iterates through all registered strategies in precedence order.
+//  1. Retrieves the 'origin' or 'upstream' remote URL.
+//  2. If 'overrideForge' is set (e.g. "github"), it tries that specific strategy first.
+//  3. Otherwise, it iterates through all registered strategies in precedence order.
+//  4. If a known forge remote is present but credentials are missing, returns a credentials error
+//     instead of the generic "no supported forge" message.
 //
 // Returns:
 // - ForgeClient: An initialized client ready for API calls.
-// - error: If no supported forge is detected or if remote URL retrieval fails.
+// - error: If no supported forge is detected, credentials are missing, or remote URL retrieval fails.
 func DetectClient(overrideForge string) (ForgeClient, error) {
 	originURL, err := getOriginURL()
 	if err != nil {
 		return nil, err
 	}
+	return detectClientFromURL(originURL, overrideForge)
+}
 
+// detectClientFromURL selects a ForgeClient for a remote URL.
+// Extracted so unit tests can cover credential vs. unsupported-host errors without a git repo.
+func detectClientFromURL(originURL, overrideForge string) (ForgeClient, error) {
 	// If the user explicitly requested GitHub, try that strategy first.
 	if overrideForge == "github" {
-		client := LoadGitHub(originURL)
-		if client != nil {
+		if client := LoadGitHub(originURL); client != nil {
 			return client, nil
 		}
 	}
@@ -44,7 +50,33 @@ func DetectClient(overrideForge string) (ForgeClient, error) {
 		}
 	}
 
+	if err := missingCredentialsError(originURL); err != nil {
+		return nil, err
+	}
+
 	return nil, fmt.Errorf("no supported forge detected for url: %s", originURL)
+}
+
+// missingCredentialsError returns a clear error when the remote matches a known forge
+// but GITHUB_TOKEN is unset (loaders return nil for both "not this forge" and "no token").
+func missingCredentialsError(originURL string) error {
+	if os.Getenv("GITHUB_TOKEN") != "" {
+		return nil
+	}
+
+	if _, _, err := ParseGitHubRemote(originURL); err == nil {
+		return fmt.Errorf("GITHUB_TOKEN not set (GitHub remote detected)")
+	}
+
+	// Generic Gitea/Forgejo remotes also authenticate with GITHUB_TOKEN.
+	if _, _, err := ParseGenericRemote(originURL); err == nil {
+		host, _ := getHostAndScheme(originURL)
+		if host != "" && host != "github.com" && host != "api.github.com" {
+			return fmt.Errorf("GITHUB_TOKEN not set (forge remote detected at %s)", host)
+		}
+	}
+
+	return nil
 }
 
 // getOriginURL retrieves the remote URL for the repository.
