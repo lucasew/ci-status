@@ -12,7 +12,8 @@ import (
 //
 // Behavior:
 //  1. Retrieves the 'origin' or 'upstream' remote URL.
-//  2. If 'overrideForge' is set (e.g. "github"), it tries that specific strategy first.
+//  2. If 'overrideForge' is set (e.g. "github"), only that strategy is used; unknown
+//     overrides error without falling through to auto-detect.
 //  3. Otherwise, it iterates through all registered strategies in precedence order.
 //  4. If a known forge remote is present but credentials are missing, returns a credentials error
 //     instead of the generic "no supported forge" message.
@@ -30,15 +31,26 @@ func DetectClient(overrideForge string) (ForgeClient, error) {
 
 // detectClientFromURL selects a ForgeClient for a remote URL.
 // Extracted so unit tests can cover credential vs. unsupported-host errors without a git repo.
+//
+// When overrideForge is set, only that strategy is used (no auto-detect fallthrough).
+// Unknown overrides fail immediately so typos do not silently report to another forge.
 func detectClientFromURL(originURL, overrideForge string) (ForgeClient, error) {
-	// If the user explicitly requested GitHub, try that strategy first.
-	if overrideForge == "github" {
-		if client := LoadGitHub(originURL); client != nil {
-			return client, nil
+	if overrideForge != "" {
+		switch overrideForge {
+		case "github":
+			if client := LoadGitHub(originURL); client != nil {
+				return client, nil
+			}
+			if err := missingCredentialsError(originURL); err != nil {
+				return nil, err
+			}
+			return nil, fmt.Errorf("could not load github client for url: %s", originURL)
+		default:
+			return nil, fmt.Errorf("unsupported forge override %q (supported: github)", overrideForge)
 		}
 	}
 
-	// Iterate through supported strategies in order of precedence.
+	// Auto-detect: try strategies in order of precedence.
 	strategies := []ForgeLoader{
 		LoadGitHub,
 		LoadGeneric,
