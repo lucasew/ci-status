@@ -116,15 +116,16 @@ func execute(cfg config.Config) error {
 			desc = cfg.FailureDesc
 		}
 
-		err := client.SetStatus(ctx, forge.StatusOpts{
+		// Do not shadow the executor err: start failures return exitCode 0 with a
+		// non-nil error, and the exit path below must still see that error.
+		if statusErr := client.SetStatus(ctx, forge.StatusOpts{
 			Commit:      commit,
 			Context:     cfg.ContextName,
 			State:       state,
 			Description: desc,
 			TargetURL:   cfg.URL,
-		})
-		if err != nil && !cfg.Silent {
-			fmt.Fprintf(os.Stderr, "Warning: failed to set final status: %v\n", err)
+		}); statusErr != nil && !cfg.Silent {
+			fmt.Fprintf(os.Stderr, "Warning: failed to set final status: %v\n", statusErr)
 		}
 	}
 
