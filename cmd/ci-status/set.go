@@ -74,44 +74,47 @@ func executeSet(cfg SetConfig) error {
 		return err
 	}
 
+	// Outside CI, skip reporting (same policy as run). Unlike run, set's only
+	// job is to post a status — once we are in CI, failures must be errors so
+	// scripts do not treat a missed status as success.
 	if !isCI(cfg.Silent) {
 		return nil
 	}
 
-	// 1. Detect Forge Client
 	client, err := forge.DetectClient(cfg.Forge)
 	if err != nil {
 		if !cfg.Silent {
-			fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		}
-		client = nil
+		return err
 	}
 
-	// 2. Detect Commit
 	commit, err := forge.DetectCommit(cfg.Commit)
-	if err != nil && !cfg.Silent {
-		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+	if err != nil {
+		if !cfg.Silent {
+			fmt.Fprintf(os.Stderr, "Error: commit not available: %v\n", err)
+		}
+		return fmt.Errorf("commit not available: %w", err)
+	}
+	if commit == "" {
+		err := fmt.Errorf("commit not available")
+		if !cfg.Silent {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		}
+		return err
 	}
 
-	// 3. Set Status
-	if client != nil && commit != "" {
-		err := client.SetStatus(ctx, forge.StatusOpts{
-			Commit:      commit,
-			Context:     cfg.ContextName,
-			State:       state,
-			Description: cfg.Description,
-			TargetURL:   cfg.URL,
-		})
-		if err != nil {
-			if !cfg.Silent {
-				fmt.Fprintf(os.Stderr, "Error: failed to set status: %v\n", err)
-			}
-			return err
-		}
-	} else {
+	if err := client.SetStatus(ctx, forge.StatusOpts{
+		Commit:      commit,
+		Context:     cfg.ContextName,
+		State:       state,
+		Description: cfg.Description,
+		TargetURL:   cfg.URL,
+	}); err != nil {
 		if !cfg.Silent {
-			fmt.Fprintln(os.Stderr, "Noop: Forge client or commit not available")
+			fmt.Fprintf(os.Stderr, "Error: failed to set status: %v\n", err)
 		}
+		return err
 	}
 
 	return nil
