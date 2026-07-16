@@ -19,15 +19,18 @@ var ErrTimeout = errors.New("command timed out")
 const ExitCodeTimeout = 124
 
 // Executor is responsible for running system commands with configured I/O streams.
-// By default, it writes to os.Stdout and os.Stderr.
+// By default, it inherits the process stdin/stdout/stderr so pipes and interactive
+// input work when wrapping a command (e.g. `echo x | ci-status run t -- cat`).
 type Executor struct {
+	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
 }
 
-// New creates a default Executor writing to standard output and error.
+// New creates a default Executor that inherits the process standard streams.
 func New() *Executor {
 	return &Executor{
+		Stdin:  os.Stdin,
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -58,6 +61,9 @@ func (e *Executor) Run(ctx context.Context, timeout time.Duration, command strin
 	}
 
 	cmd = exec.CommandContext(ctx, command, args...)
+	// nil Stdin would make the child read from /dev/null, which breaks
+	// pipelines and any command that expects inherited stdin.
+	cmd.Stdin = e.Stdin
 	cmd.Stdout = e.Stdout
 	cmd.Stderr = e.Stderr
 
