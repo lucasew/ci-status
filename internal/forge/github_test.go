@@ -173,3 +173,84 @@ func TestSetStatusKeepsShortFields(t *testing.T) {
 		t.Fatalf("short fields changed: description=%q context=%q", got["description"], got["context"])
 	}
 }
+
+func asGitHubClient(t *testing.T, c forge.ForgeClient) *forge.GitHubClient {
+	t.Helper()
+	gh, ok := c.(*forge.GitHubClient)
+	if !ok || gh == nil {
+		t.Fatalf("expected *GitHubClient, got %#v", c)
+	}
+	return gh
+}
+
+func TestLoadGitHub_GitHubDotComRemote(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "tok")
+	t.Setenv("GITHUB_API_URL", "")
+	t.Setenv("GITHUB_ACTIONS", "")
+	t.Setenv("GITHUB_REPOSITORY", "")
+
+	c := forge.LoadGitHub("https://github.com/acme/app.git")
+	gh := asGitHubClient(t, c)
+	if gh.Owner != "acme" || gh.Repo != "app" {
+		t.Fatalf("owner/repo = %s/%s, want acme/app", gh.Owner, gh.Repo)
+	}
+	if gh.BaseURL != "" {
+		t.Fatalf("BaseURL = %q, want empty (default api.github.com)", gh.BaseURL)
+	}
+}
+
+func TestLoadGitHub_UsesAPIURLAndRepoEnvOnGHES(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "tok")
+	t.Setenv("GITHUB_API_URL", "https://ghe.example.com/api/v3/")
+	t.Setenv("GITHUB_ACTIONS", "true")
+	t.Setenv("GITHUB_REPOSITORY", "acme/app")
+
+	// Non-github.com remote: without Actions env this would fall through to generic.
+	c := forge.LoadGitHub("https://ghe.example.com/acme/app.git")
+	gh := asGitHubClient(t, c)
+	if gh.Owner != "acme" || gh.Repo != "app" {
+		t.Fatalf("owner/repo = %s/%s, want acme/app from GITHUB_REPOSITORY", gh.Owner, gh.Repo)
+	}
+	if gh.BaseURL != "https://ghe.example.com/api/v3" {
+		t.Fatalf("BaseURL = %q, want GHES api/v3 without trailing slash", gh.BaseURL)
+	}
+}
+
+func TestLoadGitHub_APIURLOnGitHubDotComRemote(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "tok")
+	t.Setenv("GITHUB_API_URL", "https://api.github.com")
+	t.Setenv("GITHUB_ACTIONS", "true")
+	// Env repo must not override a parsed github.com remote.
+	t.Setenv("GITHUB_REPOSITORY", "other/other")
+
+	c := forge.LoadGitHub("https://github.com/acme/app.git")
+	gh := asGitHubClient(t, c)
+	if gh.Owner != "acme" || gh.Repo != "app" {
+		t.Fatalf("owner/repo = %s/%s, want acme/app from remote", gh.Owner, gh.Repo)
+	}
+	if gh.BaseURL != "https://api.github.com" {
+		t.Fatalf("BaseURL = %q, want GITHUB_API_URL", gh.BaseURL)
+	}
+}
+
+func TestLoadGitHub_DoesNotClaimGiteaWithoutActionsEnv(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "tok")
+	t.Setenv("GITHUB_API_URL", "")
+	t.Setenv("GITHUB_ACTIONS", "")
+	t.Setenv("GITHUB_REPOSITORY", "acme/app")
+
+	if c := forge.LoadGitHub("https://gitea.example.com/acme/app.git"); c != nil {
+		t.Fatalf("expected nil so LoadGeneric can handle Gitea, got %#v", c)
+	}
+}
+
+func TestLoadGitHub_MissingToken(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "")
+	t.Setenv("GITHUB_API_URL", "https://api.github.com")
+	t.Setenv("GITHUB_ACTIONS", "true")
+	t.Setenv("GITHUB_REPOSITORY", "acme/app")
+
+	if c := forge.LoadGitHub("https://github.com/acme/app.git"); c != nil {
+		t.Fatalf("expected nil without token, got %#v", c)
+	}
+}
