@@ -117,19 +117,73 @@ func (c *GitHubClient) SetStatus(ctx context.Context, opts StatusOpts) error {
 	return nil
 }
 
-// LoadGitHub is a strategy to initialize a GitHubClient if the URL matches a GitHub repository.
-// It requires the GITHUB_TOKEN environment variable to be set.
-func LoadGitHub(url string) ForgeClient {
-	owner, repo, err := ParseGitHubRemote(url)
-	if err != nil {
-		return nil
-	}
+// LoadGitHub is a strategy to initialize a GitHubClient for GitHub.com and GitHub
+// Enterprise (including GitHub Actions).
+//
+// Resolution order for owner/repo:
+//  1. Parse the git remote when it is a github.com URL
+//  2. Otherwise, when GitHub Actions/GHES env is present (GITHUB_API_URL and/or
+//     GITHUB_ACTIONS), fall back to GITHUB_REPOSITORY ("owner/repo")
+//
+// BaseURL comes from GITHUB_API_URL when set (Actions sets this to
+// https://api.github.com or https://ghe.example/api/v3). Without it, the client
+// defaults to api.github.com.
+//
+// Requires GITHUB_TOKEN. Returns nil when the remote is not GitHub and no
+// Actions/GHES identity is available (so LoadGeneric can handle Gitea/Forgejo).
+func LoadGitHub(remoteURL string) ForgeClient {
 	token := os.Getenv("GITHUB_TOKEN")
 	if token == "" {
 		// If the token is missing, we cannot interact with the API, so we return nil.
 		return nil
 	}
-	return NewGitHubClient(token, owner, repo)
+
+	owner, repo, ok := resolveGitHubOwnerRepo(remoteURL)
+	if !ok {
+		return nil
+	}
+
+	client := NewGitHubClient(token, owner, repo)
+	if apiURL := strings.TrimSpace(os.Getenv("GITHUB_API_URL")); apiURL != "" {
+		client.BaseURL = strings.TrimSuffix(apiURL, "/")
+	}
+	return client
+}
+
+// resolveGitHubOwnerRepo picks owner/repo for a GitHub client.
+// github.com remotes always win; Actions/GHES env is only used when the remote
+// is not github.com so we do not steal Gitea/Forgejo remotes.
+func resolveGitHubOwnerRepo(remoteURL string) (owner, repo string, ok bool) {
+	if o, r, err := ParseGitHubRemote(remoteURL); err == nil {
+		return o, r, true
+	}
+	if !githubActionsEnvPresent() {
+		return "", "", false
+	}
+	return parseGitHubRepositoryEnv()
+}
+
+// githubActionsEnvPresent is true when the process looks like GitHub Actions or
+// another GHES-aware runner that publishes the standard API URL.
+func githubActionsEnvPresent() bool {
+	if strings.EqualFold(os.Getenv("GITHUB_ACTIONS"), "true") {
+		return true
+	}
+	return strings.TrimSpace(os.Getenv("GITHUB_API_URL")) != ""
+}
+
+// parseGitHubRepositoryEnv reads GITHUB_REPOSITORY ("owner/repo"), as set by
+// GitHub Actions. Returns ok=false when unset or malformed.
+func parseGitHubRepositoryEnv() (owner, repo string, ok bool) {
+	raw := strings.TrimSpace(os.Getenv("GITHUB_REPOSITORY"))
+	if raw == "" {
+		return "", "", false
+	}
+	parts := strings.Split(raw, "/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", false
+	}
+	return parts[0], parts[1], true
 }
 
 // ParseGitHubRemote extracts the owner and repository from a GitHub remote URL.
