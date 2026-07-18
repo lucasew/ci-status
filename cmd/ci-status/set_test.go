@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -59,5 +60,60 @@ func TestExecuteSet_CI_MissingToken(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected error when CI is set but credentials/client unavailable")
+	}
+	// --silent must still fail, but mark the error quiet so main does not print.
+	if !isQuietError(err) {
+		t.Fatalf("silent credential failure should be quiet, got %T %v", err, err)
+	}
+	if !strings.Contains(err.Error(), "GITHUB_TOKEN") {
+		t.Fatalf("error should still describe the problem, got %v", err)
+	}
+}
+
+func TestQuietError(t *testing.T) {
+	base := errors.New("boom")
+	if quiet(nil, true) != nil {
+		t.Fatal("quiet(nil) should stay nil")
+	}
+	if got := quiet(base, false); got != base {
+		t.Fatalf("quiet non-silent should return same error, got %v", got)
+	}
+	got := quiet(base, true)
+	if !isQuietError(got) {
+		t.Fatalf("quiet silent should wrap, got %T", got)
+	}
+	if !errors.Is(got, base) {
+		t.Fatalf("quiet wrap should unwrap to base")
+	}
+}
+
+func TestExecuteSet_InvalidState_SilentIsQuiet(t *testing.T) {
+	err := executeSet(SetConfig{
+		ContextName: "lint",
+		State:       "bogon",
+		Silent:      true,
+	})
+	if err == nil {
+		t.Fatal("expected invalid state error")
+	}
+	if !isQuietError(err) {
+		t.Fatalf("silent invalid state should be quiet, got %T", err)
+	}
+	if !strings.Contains(err.Error(), "invalid state") {
+		t.Fatalf("want invalid state message, got %v", err)
+	}
+}
+
+func TestExecuteSet_InvalidState_NotSilent(t *testing.T) {
+	err := executeSet(SetConfig{
+		ContextName: "lint",
+		State:       "bogon",
+		Silent:      false,
+	})
+	if err == nil {
+		t.Fatal("expected invalid state error")
+	}
+	if isQuietError(err) {
+		t.Fatal("non-silent invalid state must not be quiet")
 	}
 }
