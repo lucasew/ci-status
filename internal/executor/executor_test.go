@@ -54,3 +54,32 @@ func TestExecutorRun(t *testing.T) {
 		t.Errorf("expected exit code %d, got %d", executor.ExitCodeTimeout, exitCode)
 	}
 }
+
+// TestExecutorPassesStdin ensures wrapped commands can read from the executor's
+// Stdin. Before this, Stdin was left nil and the child always saw /dev/null,
+// so pipelines like `echo hi | ci-status run t -- cat` produced empty output.
+func TestExecutorPassesStdin(t *testing.T) {
+	e := executor.New()
+	var stdout bytes.Buffer
+	e.Stdin = strings.NewReader("hello-from-stdin\n")
+	e.Stdout = &stdout
+	e.Stderr = &bytes.Buffer{}
+
+	exitCode, err := e.Run(context.Background(), 0, "cat", nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+	if got := stdout.String(); got != "hello-from-stdin\n" {
+		t.Fatalf("expected stdin to reach the command, got %q", got)
+	}
+}
+
+func TestNewInheritsProcessStdin(t *testing.T) {
+	e := executor.New()
+	if e.Stdin == nil {
+		t.Fatal("New() must set Stdin so children do not read /dev/null by default")
+	}
+}
