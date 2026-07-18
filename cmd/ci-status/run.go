@@ -105,19 +105,9 @@ func execute(cfg config.Config) error {
 
 	// 6. Set Final Status
 	if client != nil && commit != "" {
-		var state forge.State
-		var desc string
-
-		if exitCode == 0 && err == nil {
-			state = forge.StateSuccess
-			desc = cfg.SuccessDesc
-		} else {
-			state = forge.StateFailure
-			desc = cfg.FailureDesc
-		}
-
 		// Do not shadow the executor err: start failures return exitCode 0 with a
 		// non-nil error, and the exit path below must still see that error.
+		state, desc := finalStatus(exitCode, err, cfg.SuccessDesc, cfg.FailureDesc)
 		if statusErr := client.SetStatus(ctx, forge.StatusOpts{
 			Commit:      commit,
 			Context:     cfg.ContextName,
@@ -137,4 +127,19 @@ func execute(cfg config.Config) error {
 	}
 	os.Exit(exitCode)
 	return nil
+}
+
+// finalStatus maps an executor result to the forge status that should be posted.
+//
+// executor.Run returns exitCode 0 with a non-nil error when the process never
+// started (e.g. executable not found). That is a runtime/config problem
+// (StateError), not a failed check (StateFailure, reserved for real exit codes).
+func finalStatus(exitCode int, err error, successDesc, failureDesc string) (forge.State, string) {
+	if exitCode == 0 && err == nil {
+		return forge.StateSuccess, successDesc
+	}
+	if err != nil && exitCode == 0 {
+		return forge.StateError, "Failed to start"
+	}
+	return forge.StateFailure, failureDesc
 }
