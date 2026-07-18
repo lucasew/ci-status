@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"ci-status/internal/forge"
 	"github.com/spf13/cobra"
@@ -71,7 +70,8 @@ func executeSet(cfg SetConfig) error {
 
 	state, err := parseState(cfg.State)
 	if err != nil {
-		return err
+		// Single print path is main; --silent still fails with exit 1, quietly.
+		return quiet(err, cfg.Silent)
 	}
 
 	// Outside CI, skip reporting (same policy as run). Unlike run, set's only
@@ -83,25 +83,15 @@ func executeSet(cfg SetConfig) error {
 
 	client, err := forge.DetectClient(cfg.Forge)
 	if err != nil {
-		if !cfg.Silent {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		}
-		return err
+		return quiet(err, cfg.Silent)
 	}
 
 	commit, err := forge.DetectCommit(cfg.Commit)
 	if err != nil {
-		if !cfg.Silent {
-			fmt.Fprintf(os.Stderr, "Error: commit not available: %v\n", err)
-		}
-		return fmt.Errorf("commit not available: %w", err)
+		return quiet(fmt.Errorf("commit not available: %w", err), cfg.Silent)
 	}
 	if commit == "" {
-		err := fmt.Errorf("commit not available")
-		if !cfg.Silent {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		}
-		return err
+		return quiet(fmt.Errorf("commit not available"), cfg.Silent)
 	}
 
 	if err := client.SetStatus(ctx, forge.StatusOpts{
@@ -111,10 +101,7 @@ func executeSet(cfg SetConfig) error {
 		Description: cfg.Description,
 		TargetURL:   cfg.URL,
 	}); err != nil {
-		if !cfg.Silent {
-			fmt.Fprintf(os.Stderr, "Error: failed to set status: %v\n", err)
-		}
-		return err
+		return quiet(fmt.Errorf("failed to set status: %w", err), cfg.Silent)
 	}
 
 	return nil

@@ -1,11 +1,35 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
 	"ci-status/internal/forge"
 )
+
+// quietError marks an error that should still fail the process (non-zero exit)
+// but must not be printed. Used when --silent is set so CI scripts can check
+// exit codes without stderr noise.
+type quietError struct {
+	err error
+}
+
+func (e quietError) Error() string { return e.err.Error() }
+func (e quietError) Unwrap() error { return e.err }
+
+// quiet returns err unchanged, or wraps it so main suppresses printing when silent.
+func quiet(err error, silent bool) error {
+	if err == nil || !silent {
+		return err
+	}
+	return quietError{err: err}
+}
+
+func isQuietError(err error) bool {
+	var q quietError
+	return errors.As(err, &q)
+}
 
 // isCI checks if the tool is running inside a Continuous Integration environment.
 // It relies on the presence of the "CI" environment variable (standard in GitHub Actions, GitLab CI, etc.).
