@@ -2,6 +2,7 @@ package forge
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"strings"
@@ -23,8 +24,9 @@ func LoadGeneric(remoteURL string) ForgeClient {
 		return nil
 	}
 
-	// Prevent generic loader from taking over GitHub URLs if the specific loader failed
-	if host == "github.com" || host == "api.github.com" {
+	// Prevent generic loader from taking over GitHub URLs if the specific loader failed.
+	// Compare hostname only so github.com:443 (or any port) is still rejected.
+	if isGitHubAPIHost(host) {
 		return nil
 	}
 
@@ -40,8 +42,32 @@ func LoadGeneric(remoteURL string) ForgeClient {
 	return client
 }
 
-// getHostAndScheme extracts the host and scheme from the remote URL.
-// For SSH URLs, it assumes "https" as the API scheme.
+// isGitHubAPIHost reports whether host is github.com / api.github.com,
+// ignoring an optional port suffix.
+func isGitHubAPIHost(host string) bool {
+	switch strings.ToLower(hostnameOnly(host)) {
+	case "github.com", "api.github.com":
+		return true
+	default:
+		return false
+	}
+}
+
+// hostnameOnly strips a trailing :port from host when present.
+// Hosts without a port, or bare IPv6 literals, are returned unchanged.
+func hostnameOnly(host string) string {
+	h, _, err := net.SplitHostPort(host)
+	if err != nil {
+		return host
+	}
+	return h
+}
+
+// getHostAndScheme extracts the host and scheme used for the forge HTTP API.
+//
+// HTTP(S) remotes keep host:port as written (self-hosted Gitea on :3000 is common).
+// SSH remotes always use https for the API and drop the SSH port: git over
+// ssh://host:2222 must not produce https://host:2222/api/v1.
 func getHostAndScheme(remoteURL string) (string, string) {
 	// Handle HTTP/HTTPS
 	if strings.HasPrefix(remoteURL, "http://") || strings.HasPrefix(remoteURL, "https://") {
@@ -52,23 +78,23 @@ func getHostAndScheme(remoteURL string) (string, string) {
 		return u.Host, u.Scheme
 	}
 
-	// Handle SSH (git@host:...) or (ssh://...)
+	// Handle ssh:// — API is HTTPS; do not reuse the SSH listen port.
 	if strings.HasPrefix(remoteURL, "ssh://") {
 		u, err := url.Parse(remoteURL)
 		if err != nil {
 			return "", ""
 		}
-		return u.Host, "https" // Assume HTTPS for API
+		return u.Hostname(), "https"
 	}
 
-	// Scp-like: git@host:path
+	// Scp-like: git@host:path (no port in the standard form)
 	if strings.Contains(remoteURL, "@") && strings.Contains(remoteURL, ":") {
 		parts := strings.Split(remoteURL, "@")
 		if len(parts) > 1 {
 			domainPath := parts[1]
 			domainParts := strings.Split(domainPath, ":")
 			if len(domainParts) > 0 {
-				return domainParts[0], "https" // Assume HTTPS for API
+				return domainParts[0], "https"
 			}
 		}
 	}
