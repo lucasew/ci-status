@@ -21,8 +21,20 @@ func TestParseGenericRemote(t *testing.T) {
 			repo:  "repo",
 		},
 		{
+			name:  "https with .git and trailing slash",
+			url:   "https://gitea.example.com/owner/repo.git/",
+			owner: "owner",
+			repo:  "repo",
+		},
+		{
 			name:  "https without .git",
 			url:   "https://git.example.com/org/project",
+			owner: "org",
+			repo:  "project",
+		},
+		{
+			name:  "https trailing slash only",
+			url:   "https://git.example.com/org/project/",
 			owner: "org",
 			repo:  "project",
 		},
@@ -33,8 +45,20 @@ func TestParseGenericRemote(t *testing.T) {
 			repo:  "repo",
 		},
 		{
+			name:  "scp-like ssh with trailing slash after .git",
+			url:   "git@gitea.example.com:owner/repo.git/",
+			owner: "owner",
+			repo:  "repo",
+		},
+		{
 			name:  "ssh url",
 			url:   "ssh://git@git.example.com/owner/repo.git",
+			owner: "owner",
+			repo:  "repo",
+		},
+		{
+			name:  "ssh url with .git/",
+			url:   "ssh://git@git.example.com/owner/repo.git/",
 			owner: "owner",
 			repo:  "repo",
 		},

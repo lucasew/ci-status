@@ -2,7 +2,23 @@ package forge
 
 import (
 	"context"
+	"strings"
 )
+
+// normalizeRemoteURL strips trailing "/" and optional ".git" in any order so
+// forms like https://host/o/r.git/ and git@host:o/r.git/ parse the same as
+// without those suffixes. A single TrimSuffix(".git") then TrimSuffix("/")
+// leaves ".git" when the URL ends with ".git/".
+func normalizeRemoteURL(remoteURL string) string {
+	for {
+		prev := remoteURL
+		remoteURL = strings.TrimSuffix(remoteURL, "/")
+		remoteURL = strings.TrimSuffix(remoteURL, ".git")
+		if remoteURL == prev {
+			return remoteURL
+		}
+	}
+}
 
 // State represents the status of a CI/CD pipeline step reported to the forge.
 // Different forges might map these states slightly differently (e.g. GitHub treats 'running' as 'pending').

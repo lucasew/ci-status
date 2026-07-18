@@ -107,8 +107,7 @@ func getHostAndScheme(remoteURL string) (string, string) {
 // SCP-like syntax (git@host:path) is normalized by replacing the first colon with a slash.
 // Owner and repo are always the last two path segments (supports nested groups).
 func ParseGenericRemote(remoteURL string) (owner, repo string, err error) {
-	remoteURL = strings.TrimSuffix(remoteURL, ".git")
-	remoteURL = strings.TrimSuffix(remoteURL, "/")
+	remoteURL = normalizeRemoteURL(remoteURL)
 
 	var pathParts []string
 

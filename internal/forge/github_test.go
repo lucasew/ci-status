@@ -21,9 +21,14 @@ func TestParseGitHubRemote(t *testing.T) {
 	}{
 		{"https://github.com/owner/repo.git", "owner", "repo", false},
 		{"https://github.com/owner/repo", "owner", "repo", false},
+		// Trailing slash after .git used to leave repo name "repo.git".
+		{"https://github.com/owner/repo.git/", "owner", "repo", false},
+		{"https://github.com/owner/repo/", "owner", "repo", false},
 		{"git@github.com:owner/repo.git", "owner", "repo", false},
+		{"git@github.com:owner/repo.git/", "owner", "repo", false},
 		{"git@github.com:owner/repo", "owner", "repo", false},
 		{"ssh://git@github.com/owner/repo.git", "owner", "repo", false},
+		{"ssh://git@github.com/owner/repo.git/", "owner", "repo", false},
 		{"https://gitlab.com/owner/repo.git", "", "", true},
 		{"invalid", "", "", true},
 	}

@@ -139,8 +139,7 @@ func LoadGitHub(url string) ForgeClient {
 // - git@github.com:owner/repo.git
 // - ssh://git@github.com/owner/repo.git
 func ParseGitHubRemote(remoteURL string) (owner, repo string, err error) {
-	remoteURL = strings.TrimSuffix(remoteURL, ".git")
-	remoteURL = strings.TrimSuffix(remoteURL, "/")
+	remoteURL = normalizeRemoteURL(remoteURL)
 
 	// Try parsing as URL first to handle auth and other schemes robustly.
 	if u, err := url.Parse(remoteURL); err == nil {
