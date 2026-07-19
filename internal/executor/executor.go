@@ -51,36 +51,51 @@ func New() *Executor {
 //
 // Note: If the command fails to start (e.g. executable not found), it returns exit code 0 and an error.
 // This distinguishes execution failures from application failures.
+//
+// On Unix, the child is started in its own process group so a timeout/cancel
+// kills the whole tree (shells that spawn helpers no longer leave orphans).
 func (e *Executor) Run(ctx context.Context, timeout time.Duration, command string, args []string) (int, error) {
-	var cmd *exec.Cmd
-
 	if timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
 
-	cmd = exec.CommandContext(ctx, command, args...)
+	// Own cancellation: CommandContext only kills the direct child PID, not a
+	// process group. We set the group in prepareCommand and kill it ourselves.
+	cmd := exec.Command(command, args...)
 	// nil Stdin would make the child read from /dev/null, which breaks
 	// pipelines and any command that expects inherited stdin.
 	cmd.Stdin = e.Stdin
 	cmd.Stdout = e.Stdout
 	cmd.Stderr = e.Stderr
+	prepareCommand(cmd)
 
 	if err := cmd.Start(); err != nil {
 		return 0, fmt.Errorf("failed to start command: %w", err)
 	}
 
-	err := cmd.Wait()
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			return ExitCodeTimeout, ErrTimeout
+	waitErr := make(chan error, 1)
+	go func() {
+		waitErr <- cmd.Wait()
+	}()
+
+	select {
+	case err := <-waitErr:
+		if err == nil {
+			return 0, nil
 		}
-		if exitError, ok := err.(*exec.ExitError); ok {
+		var exitError *exec.ExitError
+		if errors.As(err, &exitError) {
 			return exitError.ExitCode(), nil
 		}
 		return 1, fmt.Errorf("command execution failed: %w", err)
+	case <-ctx.Done():
+		killCommand(cmd)
+		<-waitErr
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return ExitCodeTimeout, ErrTimeout
+		}
+		return 1, fmt.Errorf("command cancelled: %w", ctx.Err())
 	}
-
-	return 0, nil
 }

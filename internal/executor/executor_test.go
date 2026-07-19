@@ -83,3 +83,40 @@ func TestNewInheritsProcessStdin(t *testing.T) {
 		t.Fatal("New() must set Stdin so children do not read /dev/null by default")
 	}
 }
+
+func TestCancelKillsCommand(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	e := executor.New()
+	e.Stdout = &bytes.Buffer{}
+	e.Stderr = &bytes.Buffer{}
+
+	done := make(chan struct {
+		code int
+		err  error
+	}, 1)
+	go func() {
+		code, err := e.Run(ctx, 0, "sleep", []string{"30"})
+		done <- struct {
+			code int
+			err  error
+		}{code, err}
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+
+	select {
+	case res := <-done:
+		if res.err == nil {
+			t.Fatal("expected error after cancel")
+		}
+		if errors.Is(res.err, executor.ErrTimeout) {
+			t.Fatalf("cancel should not report timeout: %v", res.err)
+		}
+		if res.code != 1 {
+			t.Fatalf("expected exit code 1 on cancel, got %d", res.code)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("Run did not return after cancel")
+	}
+}
