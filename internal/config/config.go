@@ -36,7 +36,8 @@ type Config struct {
 	// If exceeded, the command context is cancelled, the process is terminated,
 	// and a 'StateError' status is reported to the forge.
 	Timeout time.Duration
-	// Silent suppresses non-essential output to stdout/stderr.
-	// Errors will still be printed, but warnings (like missing CI env) might be suppressed.
+	// Silent suppresses warnings and diagnostic error lines on stderr
+	// (missing CI, status API failures, timeout/start messages). Exit codes
+	// are unchanged so scripts can still branch on success vs failure.
 	Silent bool
 }

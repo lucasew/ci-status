@@ -91,15 +91,20 @@ func execute(cfg config.Config) error {
 	// Handle timeout specifically
 	if errors.Is(err, executor.ErrTimeout) {
 		if client != nil && commit != "" {
-			_ = client.SetStatus(ctx, forge.StatusOpts{
+			if statusErr := client.SetStatus(ctx, forge.StatusOpts{
 				Commit:      commit,
 				Context:     cfg.ContextName,
 				State:       forge.StateError,
 				Description: "Timed out",
 				TargetURL:   cfg.URL,
-			})
+			}); statusErr != nil && !cfg.Silent {
+				fmt.Fprintf(os.Stderr, "Warning: failed to set timeout status: %v\n", statusErr)
+			}
 		}
-		fmt.Fprintln(os.Stderr, "Error: command timed out")
+		// Match final/start paths and --silent ("on errors"): still exit 124.
+		if !cfg.Silent {
+			fmt.Fprintln(os.Stderr, "Error: command timed out")
+		}
 		os.Exit(executor.ExitCodeTimeout)
 	}
 
@@ -121,8 +126,10 @@ func execute(cfg config.Config) error {
 
 	// 7. Exit
 	if err != nil && exitCode == 0 {
-		// If there was an error running the command but not exit code (e.g. start failed)
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		// Start failed (e.g. executable not found). Exit 1; respect --silent.
+		if !cfg.Silent {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		}
 		os.Exit(1)
 	}
 	os.Exit(exitCode)
