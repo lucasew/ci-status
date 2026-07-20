@@ -54,7 +54,15 @@ func New() *Executor {
 //
 // On Unix, the child is started in its own process group so a timeout/cancel
 // kills the whole tree (shells that spawn helpers no longer leave orphans).
+// Because that new group no longer receives the terminal's SIGINT/SIGTERM with
+// the parent, Run also cancels on those signals so killCommand still runs.
 func (e *Executor) Run(ctx context.Context, timeout time.Duration, command string, args []string) (int, error) {
+	// Setpgid isolates the child from the terminal process group. Without this,
+	// Ctrl+C / SIGTERM would kill only ci-status and leave the wrapped command
+	// (and its grandchildren) running.
+	ctx, stop := withSignalCancel(ctx)
+	defer stop()
+
 	if timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, timeout)
