@@ -2,6 +2,8 @@ package forge
 
 import (
 	"context"
+	"net"
+	"net/url"
 	"strings"
 )
 
@@ -9,15 +11,82 @@ import (
 // forms like https://host/o/r.git/ and git@host:o/r.git/ parse the same as
 // without those suffixes. A single TrimSuffix(".git") then TrimSuffix("/")
 // leaves ".git" when the URL ends with ".git/".
+//
+// It also lowercases the host and drops default scheme ports (http:80,
+// https/ssh:443). ParseGitHubRemote matches hosts with == and literal
+// prefixes, so https://GitHub.com/... or https://github.com:443/... would
+// otherwise fail detection and fall through as "unsupported forge".
 func normalizeRemoteURL(remoteURL string) string {
 	for {
 		prev := remoteURL
 		remoteURL = strings.TrimSuffix(remoteURL, "/")
 		remoteURL = strings.TrimSuffix(remoteURL, ".git")
 		if remoteURL == prev {
-			return remoteURL
+			break
 		}
 	}
+	return normalizeRemoteHost(remoteURL)
+}
+
+// normalizeRemoteHost lowercases the remote host and strips default ports.
+// Non-default ports (e.g. Gitea on :3000) are preserved.
+func normalizeRemoteHost(remoteURL string) string {
+	if remoteURL == "" {
+		return remoteURL
+	}
+
+	// http(s):// and ssh:// — rewrite Host via net/url.
+	if strings.Contains(remoteURL, "://") {
+		u, err := url.Parse(remoteURL)
+		if err != nil || u.Host == "" {
+			return remoteURL
+		}
+		host := strings.ToLower(u.Hostname())
+		port := u.Port()
+		if port != "" && isDefaultRemotePort(u.Scheme, port) {
+			port = ""
+		}
+		u.Scheme = strings.ToLower(u.Scheme)
+		u.Host = joinHostPort(host, port)
+		return u.String()
+	}
+
+	// SCP-like: user@host:path (no scheme). Lowercase host only.
+	at := strings.LastIndex(remoteURL, "@")
+	if at < 0 {
+		return remoteURL
+	}
+	rest := remoteURL[at+1:]
+	colon := strings.Index(rest, ":")
+	if colon <= 0 {
+		return remoteURL
+	}
+	host := strings.ToLower(rest[:colon])
+	return remoteURL[:at+1] + host + rest[colon:]
+}
+
+// isDefaultRemotePort reports whether port is the scheme's default and can be
+// omitted without changing the remote identity.
+func isDefaultRemotePort(scheme, port string) bool {
+	switch strings.ToLower(scheme) {
+	case "http":
+		return port == "80"
+	case "https", "ssh":
+		return port == "443"
+	default:
+		return false
+	}
+}
+
+// joinHostPort builds a URL host (host or host:port), bracketing IPv6 hosts.
+func joinHostPort(host, port string) string {
+	if port == "" {
+		if strings.Contains(host, ":") {
+			return "[" + host + "]"
+		}
+		return host
+	}
+	return net.JoinHostPort(host, port)
 }
 
 // State represents the status of a CI/CD pipeline step reported to the forge.
