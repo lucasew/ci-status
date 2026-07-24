@@ -68,7 +68,12 @@ func hostnameOnly(host string) string {
 // HTTP(S) remotes keep host:port as written (self-hosted Gitea on :3000 is common).
 // SSH remotes always use https for the API and drop the SSH port: git over
 // ssh://host:2222 must not produce https://host:2222/api/v1.
+//
+// Remotes are host-normalized first (lowercase, default ports stripped) so API
+// BaseURLs stay stable across equivalent git remote spellings.
 func getHostAndScheme(remoteURL string) (string, string) {
+	remoteURL = normalizeRemoteURL(remoteURL)
+
 	// Handle HTTP/HTTPS
 	if strings.HasPrefix(remoteURL, "http://") || strings.HasPrefix(remoteURL, "https://") {
 		u, err := url.Parse(remoteURL)
