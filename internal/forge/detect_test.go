@@ -95,3 +95,49 @@ func TestDetectClientFromURL_OverrideGitHub(t *testing.T) {
 		t.Fatal("expected client with override=github")
 	}
 }
+
+func TestDetectClientFromURL_OverrideGitHubNoFallthrough(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "test-token")
+
+	// Generic/Gitea remotes must not be used when the user forced --forge github.
+	client, err := detectClientFromURL("https://gitea.example.com/owner/repo.git", "github")
+	if client != nil {
+		t.Fatalf("expected nil client for non-GitHub remote with github override, got %#v", client)
+	}
+	if err == nil {
+		t.Fatal("expected error when github override cannot load the client")
+	}
+	if !strings.Contains(err.Error(), "could not load github client") {
+		t.Fatalf("want exclusive github-override failure, got %v", err)
+	}
+}
+
+func TestDetectClientFromURL_UnsupportedOverride(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "test-token")
+
+	client, err := detectClientFromURL("https://github.com/owner/repo.git", "gitlab")
+	if client != nil {
+		t.Fatalf("expected nil client for unsupported override, got %#v", client)
+	}
+	if err == nil {
+		t.Fatal("expected error for unsupported forge override")
+	}
+	if !strings.Contains(err.Error(), "unsupported forge override") {
+		t.Fatalf("want unsupported-override message, got %v", err)
+	}
+}
+
+func TestDetectClientFromURL_OverrideGitHubMissingToken(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "")
+
+	client, err := detectClientFromURL("https://github.com/owner/repo.git", "github")
+	if client != nil {
+		t.Fatalf("expected nil client without token, got %#v", client)
+	}
+	if err == nil {
+		t.Fatal("expected credentials error")
+	}
+	if !strings.Contains(err.Error(), "GITHUB_TOKEN not set") {
+		t.Fatalf("want missing-token message, got %v", err)
+	}
+}
