@@ -99,11 +99,25 @@ func (e *Executor) Run(ctx context.Context, timeout time.Duration, command strin
 		}
 		return 1, fmt.Errorf("command execution failed: %w", err)
 	case <-ctx.Done():
+		// Context cancelled or timed out. Kill the process group, then decide
+		// from Wait's result (see outcomeAfterStop).
 		killCommand(cmd)
-		<-waitErr
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return ExitCodeTimeout, ErrTimeout
-		}
-		return 1, fmt.Errorf("command cancelled: %w", ctx.Err())
+		return outcomeAfterStop(<-waitErr, ctx.Err())
 	}
+}
+
+// outcomeAfterStop maps a Wait result after timeout/cancel kill.
+//
+// select may choose the ctx.Done branch even when waitErr is also ready
+// (both ready → random choice). If Wait already observed exit 0, prefer
+// success over a false timeout/cancel. Non-nil Wait errors keep the
+// stop reason (timeout vs cancel).
+func outcomeAfterStop(waitErr, ctxErr error) (int, error) {
+	if waitErr == nil {
+		return 0, nil
+	}
+	if errors.Is(ctxErr, context.DeadlineExceeded) {
+		return ExitCodeTimeout, ErrTimeout
+	}
+	return 1, fmt.Errorf("command cancelled: %w", ctxErr)
 }
