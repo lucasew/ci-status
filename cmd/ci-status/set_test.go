@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -38,7 +37,7 @@ func TestParseState(t *testing.T) {
 
 func TestExecuteSet_NotCI_Noop(t *testing.T) {
 	t.Setenv("CI", "")
-	err := executeSet(context.Background(), SetConfig{
+	err := executeSet(t.Context(), SetConfig{
 		ContextName: "lint",
 		State:       "success",
 		Silent:      true,
@@ -53,7 +52,7 @@ func TestExecuteSet_CI_MissingToken(t *testing.T) {
 	t.Setenv("GITHUB_TOKEN", "")
 	// Force a github-ish remote via git is hard; DetectClient uses real git remote
 	// of this checkout (github.com/lucasew/ci-status), so missing token must error.
-	err := executeSet(context.Background(), SetConfig{
+	err := executeSet(t.Context(), SetConfig{
 		ContextName: "lint",
 		State:       "success",
 		Commit:      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -89,7 +88,7 @@ func TestQuietError(t *testing.T) {
 }
 
 func TestExecuteSet_InvalidState_SilentIsQuiet(t *testing.T) {
-	err := executeSet(context.Background(), SetConfig{
+	err := executeSet(t.Context(), SetConfig{
 		ContextName: "lint",
 		State:       "bogon",
 		Silent:      true,
@@ -106,7 +105,7 @@ func TestExecuteSet_InvalidState_SilentIsQuiet(t *testing.T) {
 }
 
 func TestExecuteSet_InvalidState_NotSilent(t *testing.T) {
-	err := executeSet(context.Background(), SetConfig{
+	err := executeSet(t.Context(), SetConfig{
 		ContextName: "lint",
 		State:       "bogon",
 		Silent:      false,
