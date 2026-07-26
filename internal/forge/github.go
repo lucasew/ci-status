@@ -83,12 +83,12 @@ func (c *GitHubClient) SetStatus(ctx context.Context, opts StatusOpts) error {
 
 	jsonBody, err := json.Marshal(body)
 	if err != nil {
-		return fmt.Errorf("failed to marshal request body: %w", err)
+		return fmt.Errorf("marshal request body: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", statusURL, bytes.NewBuffer(jsonBody))
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+		return fmt.Errorf("create request: %w", err)
 	}
 
 	// Sanitize token to prevent header injection vulnerabilities.
@@ -103,7 +103,7 @@ func (c *GitHubClient) SetStatus(ctx context.Context, opts StatusOpts) error {
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to execute request: %w", err)
+		return fmt.Errorf("execute request: %w", err)
 	}
 	defer func() {
 		_ = resp.Body.Close()

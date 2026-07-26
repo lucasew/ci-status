@@ -1,7 +1,6 @@
 package forge_test
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -78,7 +77,7 @@ func TestSetStatusMapsRunningToPending(t *testing.T) {
 	client := forge.NewGitHubClient("token", "owner", "repo")
 	client.BaseURL = srv.URL
 
-	err := client.SetStatus(context.Background(), forge.StatusOpts{
+	err := client.SetStatus(t.Context(), forge.StatusOpts{
 		Commit:      "abc123",
 		Context:     "lint",
 		State:       forge.StateRunning,
@@ -118,7 +117,7 @@ func TestSetStatusTruncatesLongFields(t *testing.T) {
 	client := forge.NewGitHubClient("token", "owner", "repo")
 	client.BaseURL = srv.URL
 
-	err := client.SetStatus(context.Background(), forge.StatusOpts{
+	err := client.SetStatus(t.Context(), forge.StatusOpts{
 		Commit:      "abc123",
 		Context:     longCtx,
 		State:       forge.StateSuccess,
@@ -165,7 +164,7 @@ func TestSetStatusKeepsShortFields(t *testing.T) {
 	client := forge.NewGitHubClient("token", "owner", "repo")
 	client.BaseURL = srv.URL
 
-	err := client.SetStatus(context.Background(), forge.StatusOpts{
+	err := client.SetStatus(t.Context(), forge.StatusOpts{
 		Commit:      "abc123",
 		Context:     "ci/lint",
 		State:       forge.StateSuccess,

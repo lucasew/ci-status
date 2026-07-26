@@ -32,7 +32,7 @@ func TestFinalStatus(t *testing.T) {
 		{
 			name:      "start failure is error not failure",
 			exitCode:  0,
-			err:       errors.New("failed to start command: exec: \"nope\": executable file not found"),
+			err:       errors.New("start command: exec: \"nope\": executable file not found"),
 			wantState: forge.StateError,
 			wantDesc:  "Failed to start",
 		},

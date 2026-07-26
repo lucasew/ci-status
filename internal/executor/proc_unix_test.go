@@ -4,7 +4,6 @@ package executor_test
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -30,7 +29,7 @@ func TestTimeoutKillsProcessGroup(t *testing.T) {
 	e.Stdout = &bytes.Buffer{}
 	e.Stderr = &bytes.Buffer{}
 
-	exitCode, err := e.Run(context.Background(), 200*time.Millisecond, "sh", []string{"-c", script, "sh", pidFile})
+	exitCode, err := e.Run(t.Context(), 200*time.Millisecond, "sh", []string{"-c", script, "sh", pidFile})
 	if !errors.Is(err, executor.ErrTimeout) {
 		t.Fatalf("expected ErrTimeout, got exit=%d err=%v", exitCode, err)
 	}

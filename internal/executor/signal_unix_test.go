@@ -4,7 +4,6 @@ package executor_test
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -34,7 +33,7 @@ func TestSignalKillsProcessGroup(t *testing.T) {
 		err  error
 	}, 1)
 	go func() {
-		code, err := e.Run(context.Background(), 0, "sh", []string{"-c", script, "sh", pidFile})
+		code, err := e.Run(t.Context(), 0, "sh", []string{"-c", script, "sh", pidFile})
 		done <- struct {
 			code int
 			err  error
@@ -108,7 +107,7 @@ func TestSIGHUPKillsProcessGroup(t *testing.T) {
 		err  error
 	}, 1)
 	go func() {
-		code, err := e.Run(context.Background(), 0, "sh", []string{"-c", script, "sh", pidFile})
+		code, err := e.Run(t.Context(), 0, "sh", []string{"-c", script, "sh", pidFile})
 		done <- struct {
 			code int
 			err  error

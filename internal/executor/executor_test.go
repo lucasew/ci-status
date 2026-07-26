@@ -17,7 +17,7 @@ func TestExecutorRun(t *testing.T) {
 	e.Stdout = &stdout
 	e.Stderr = &stderr
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Test successful execution
 	exitCode, err := e.Run(ctx, 0, "echo", []string{"hello"})
@@ -65,7 +65,7 @@ func TestExecutorPassesStdin(t *testing.T) {
 	e.Stdout = &stdout
 	e.Stderr = &bytes.Buffer{}
 
-	exitCode, err := e.Run(context.Background(), 0, "cat", nil)
+	exitCode, err := e.Run(t.Context(), 0, "cat", nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -85,7 +85,7 @@ func TestNewInheritsProcessStdin(t *testing.T) {
 }
 
 func TestCancelKillsCommand(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	e := executor.New()
 	e.Stdout = &bytes.Buffer{}
 	e.Stderr = &bytes.Buffer{}
