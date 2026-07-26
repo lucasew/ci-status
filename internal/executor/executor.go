@@ -80,7 +80,7 @@ func (e *Executor) Run(ctx context.Context, timeout time.Duration, command strin
 	prepareCommand(cmd)
 
 	if err := cmd.Start(); err != nil {
-		return 0, fmt.Errorf("failed to start command: %w", err)
+		return 0, fmt.Errorf("start command: %w", err)
 	}
 
 	waitErr := make(chan error, 1)
