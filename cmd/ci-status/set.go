@@ -37,7 +37,8 @@ var SetCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		setConfig.ContextName = args[0]
-		return executeSet(setConfig)
+		// cmd.Context() so a parent ExecuteContext cancel reaches status posts.
+		return executeSet(cmd.Context(), setConfig)
 	},
 }
 
@@ -65,9 +66,10 @@ func parseState(s string) (forge.State, error) {
 	}
 }
 
-func executeSet(cfg SetConfig) error {
-	ctx := context.Background()
-
+// executeSet posts a forge status for the given context name.
+// ctx should come from the cobra command (cmd.Context()) so a parent
+// ExecuteContext cancel reaches the status post.
+func executeSet(ctx context.Context, cfg SetConfig) error {
 	state, err := parseState(cfg.State)
 	if err != nil {
 		// Single print path is main; --silent still fails with exit 1, quietly.
