@@ -9,11 +9,11 @@ import (
 
 func TestFinalStatus(t *testing.T) {
 	tests := []struct {
-		name        string
-		exitCode    int
-		err         error
-		wantState   forge.State
-		wantDesc    string
+		name      string
+		exitCode  int
+		err       error
+		wantState forge.State
+		wantDesc  string
 	}{
 		{
 			name:      "success",
