@@ -34,7 +34,7 @@ var RunCmd = &cobra.Command{
 			runConfig.Args = args[dashIdx+1:]
 		}
 
-		return execute(runConfig)
+		return execute(cmd.Context(), runConfig)
 	},
 }
 
@@ -66,8 +66,10 @@ func init() {
 // - Makes HTTP requests to the forge API.
 // - Prints warnings/errors to stderr.
 // - Terminates the process using os.Exit (does not return).
-func execute(cfg config.Config) error {
-	ctx := context.Background()
+//
+// ctx should come from the cobra command (cmd.Context()) so a parent
+// ExecuteContext cancel reaches status posts and the wrapped command.
+func execute(ctx context.Context, cfg config.Config) error {
 	client, commit := initForge(cfg.Forge, cfg.Commit, cfg.Silent)
 	var err error
 
