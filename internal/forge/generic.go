@@ -120,7 +120,7 @@ func ParseGenericRemote(remoteURL string) (owner, repo string, err error) {
 		// http(s):// and ssh:// — parse with net/url so host/scheme stay out of the path.
 		u, parseErr := url.Parse(remoteURL)
 		if parseErr != nil {
-			return "", "", fmt.Errorf("cannot parse generic remote: %s", remoteURL)
+			return "", "", fmt.Errorf("cannot parse generic remote %q: %w", remoteURL, parseErr)
 		}
 		pathParts = strings.FieldsFunc(u.Path, func(r rune) bool { return r == '/' })
 	} else {
