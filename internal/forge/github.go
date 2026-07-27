@@ -13,6 +13,20 @@ import (
 	"time"
 )
 
+// githubError is a stable GitHub client / remote-parse sentinel. Prefer these
+// (or fmt.Errorf %w wrapping them) over bare fmt.Errorf so callers can errors.Is.
+type githubError string
+
+func (e githubError) Error() string { return string(e) }
+
+// GitHub error table. Dynamic detail is attached with fmt.Errorf %w.
+const (
+	ErrGitHubAPIError          githubError = "github api error"
+	ErrInvalidHTTPSGitHubURL   githubError = "invalid https github url"
+	ErrInvalidSSHGitHubURL     githubError = "invalid ssh github url"
+	ErrUnrecognizedGitHubURL   githubError = "unrecognized github url format"
+)
+
 // GitHubClient implements the ForgeClient interface for GitHub and compatible APIs.
 // It handles authentication via personal access tokens and status updates.
 type GitHubClient struct {
@@ -111,7 +125,7 @@ func (c *GitHubClient) SetStatus(ctx context.Context, opts StatusOpts) error {
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("github api error: %s - %s", resp.Status, string(respBody))
+		return fmt.Errorf("%w: %s - %s", ErrGitHubAPIError, resp.Status, string(respBody))
 	}
 
 	return nil
@@ -209,22 +223,22 @@ func ParseGitHubRemote(remoteURL string) (owner, repo string, err error) {
 	// Fallback handling for formats that url.Parse might misinterpret (e.g., SCP-like syntax).
 	fallbackFormats := []struct {
 		prefix string
-		format string
+		err    githubError
 	}{
-		{"https://github.com/", "https github url"},
-		{"git@github.com:", "ssh github url"},
-		{"ssh://git@github.com/", "ssh github url"},
+		{"https://github.com/", ErrInvalidHTTPSGitHubURL},
+		{"git@github.com:", ErrInvalidSSHGitHubURL},
+		{"ssh://git@github.com/", ErrInvalidSSHGitHubURL},
 	}
 
 	for _, f := range fallbackFormats {
 		if strings.HasPrefix(remoteURL, f.prefix) {
 			parts := strings.Split(strings.TrimPrefix(remoteURL, f.prefix), "/")
 			if len(parts) != 2 {
-				return "", "", fmt.Errorf("invalid %s: %s", f.format, remoteURL)
+				return "", "", fmt.Errorf("%w: %s", f.err, remoteURL)
 			}
 			return parts[0], parts[1], nil
 		}
 	}
 
-	return "", "", fmt.Errorf("unrecognized github url format: %s", remoteURL)
+	return "", "", fmt.Errorf("%w: %s", ErrUnrecognizedGitHubURL, remoteURL)
 }
