@@ -8,6 +8,17 @@ import (
 	"strings"
 )
 
+// genericError is a stable generic-remote parse sentinel. Prefer these (or
+// fmt.Errorf %w wrapping them) over bare fmt.Errorf so callers can errors.Is.
+type genericError string
+
+func (e genericError) Error() string { return string(e) }
+
+// Generic remote error table. Dynamic detail is attached with fmt.Errorf %w.
+const (
+	ErrCannotParseGenericRemote genericError = "cannot parse generic remote"
+)
+
 // LoadGeneric is a strategy to initialize a ForgeClient for generic Gitea/Forgejo instances.
 // It assumes the forge supports a GitHub-compatible API at `/api/v1`.
 // It explicitly rejects GitHub URLs to prevent fallback loops or incorrect client initialization.
@@ -120,7 +131,7 @@ func ParseGenericRemote(remoteURL string) (owner, repo string, err error) {
 		// http(s):// and ssh:// — parse with net/url so host/scheme stay out of the path.
 		u, parseErr := url.Parse(remoteURL)
 		if parseErr != nil {
-			return "", "", fmt.Errorf("cannot parse generic remote %q: %w", remoteURL, parseErr)
+			return "", "", fmt.Errorf("%w %q: %w", ErrCannotParseGenericRemote, remoteURL, parseErr)
 		}
 		pathParts = strings.FieldsFunc(u.Path, func(r rune) bool { return r == '/' })
 	} else {
@@ -134,7 +145,7 @@ func ParseGenericRemote(remoteURL string) (owner, repo string, err error) {
 	}
 
 	if len(pathParts) < 2 {
-		return "", "", fmt.Errorf("cannot parse generic remote: %s", remoteURL)
+		return "", "", fmt.Errorf("%w: %s", ErrCannotParseGenericRemote, remoteURL)
 	}
 
 	return pathParts[len(pathParts)-2], pathParts[len(pathParts)-1], nil
