@@ -7,6 +7,21 @@ import (
 	"strings"
 )
 
+// detectError is a stable detection sentinel. Prefer these (or fmt.Errorf %w
+// wrapping them) over bare fmt.Errorf / errors.New so callers can errors.Is.
+type detectError string
+
+func (e detectError) Error() string { return string(e) }
+
+// Detection error table. Dynamic detail is attached with fmt.Errorf %w.
+const (
+	ErrCouldNotLoadGitHubClient detectError = "could not load github client for url"
+	ErrUnsupportedForgeOverride detectError = "unsupported forge override"
+	ErrNoSupportedForge         detectError = "no supported forge detected for url"
+	ErrGitHubTokenNotSet        detectError = "GITHUB_TOKEN not set"
+	ErrNoRemoteURL              detectError = "could not determine remote url for 'origin' or 'upstream'"
+)
+
 // DetectClient attempts to identify the appropriate ForgeClient by analyzing the repository's remote URL.
 // It implements a strategy pattern, iterating through available loaders (GitHub, Generic) to find a match.
 //
@@ -44,9 +59,9 @@ func detectClientFromURL(originURL, overrideForge string) (ForgeClient, error) {
 			if err := missingCredentialsError(originURL); err != nil {
 				return nil, err
 			}
-			return nil, fmt.Errorf("could not load github client for url: %s", originURL)
+			return nil, fmt.Errorf("%w: %s", ErrCouldNotLoadGitHubClient, originURL)
 		default:
-			return nil, fmt.Errorf("unsupported forge override %q (supported: github)", overrideForge)
+			return nil, fmt.Errorf("%w %q (supported: github)", ErrUnsupportedForgeOverride, overrideForge)
 		}
 	}
 
@@ -66,7 +81,7 @@ func detectClientFromURL(originURL, overrideForge string) (ForgeClient, error) {
 		return nil, err
 	}
 
-	return nil, fmt.Errorf("no supported forge detected for url: %s", originURL)
+	return nil, fmt.Errorf("%w: %s", ErrNoSupportedForge, originURL)
 }
 
 // missingCredentialsError returns a clear error when the remote matches a known forge
@@ -77,14 +92,14 @@ func missingCredentialsError(originURL string) error {
 	}
 
 	if _, _, err := ParseGitHubRemote(originURL); err == nil {
-		return fmt.Errorf("GITHUB_TOKEN not set (GitHub remote detected)")
+		return fmt.Errorf("%w (GitHub remote detected)", ErrGitHubTokenNotSet)
 	}
 
 	// Generic Gitea/Forgejo remotes also authenticate with GITHUB_TOKEN.
 	if _, _, err := ParseGenericRemote(originURL); err == nil {
 		host, _ := getHostAndScheme(originURL)
 		if host != "" && host != "github.com" && host != "api.github.com" {
-			return fmt.Errorf("GITHUB_TOKEN not set (forge remote detected at %s)", host)
+			return fmt.Errorf("%w (forge remote detected at %s)", ErrGitHubTokenNotSet, host)
 		}
 	}
 
@@ -103,7 +118,7 @@ func getOriginURL() (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("could not determine remote url for 'origin' or 'upstream'")
+	return "", ErrNoRemoteURL
 }
 
 // DetectCommit resolves the commit SHA to be reported.
