@@ -16,11 +16,17 @@ func prepareCommand(cmd *exec.Cmd) {}
 // so shells that spawn helpers would leave orphans on timeout/cancel.
 // taskkill /T /F mirrors that tree-wide teardown; Process.Kill is the fallback
 // if taskkill is unavailable or the PID is already gone.
+// Failures are expected when the tree already exited (timeout race) and ignored.
 func killCommand(cmd *exec.Cmd) {
 	if cmd.Process == nil {
 		return
 	}
 	pid := strconv.Itoa(cmd.Process.Pid)
-	_ = exec.Command("taskkill", "/T", "/F", "/PID", pid).Run()
-	_ = cmd.Process.Kill()
+	if err := exec.Command("taskkill", "/T", "/F", "/PID", pid).Run(); err == nil {
+		return
+	}
+	if err := cmd.Process.Kill(); err != nil {
+		// Process is gone — nothing left to signal.
+		return
+	}
 }
