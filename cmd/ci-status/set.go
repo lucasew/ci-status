@@ -103,7 +103,7 @@ func executeSet(ctx context.Context, cfg SetConfig) error {
 		Description: cfg.Description,
 		TargetURL:   cfg.URL,
 	}); err != nil {
-		return quiet(fmt.Errorf("failed to set status: %w", err), cfg.Silent)
+		return quiet(fmt.Errorf("set status: %w", err), cfg.Silent)
 	}
 
 	return nil
