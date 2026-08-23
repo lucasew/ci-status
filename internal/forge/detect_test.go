@@ -1,7 +1,7 @@
 package forge
 
 import (
-	"strings"
+	"errors"
 	"testing"
 )
 
@@ -9,24 +9,20 @@ func TestDetectClientFromURL_MissingToken(t *testing.T) {
 	t.Setenv("GITHUB_TOKEN", "")
 
 	cases := []struct {
-		name    string
-		url     string
-		wantSub string
+		name string
+		url  string
 	}{
 		{
-			name:    "github https",
-			url:     "https://github.com/owner/repo.git",
-			wantSub: "GITHUB_TOKEN not set",
+			name: "github https",
+			url:  "https://github.com/owner/repo.git",
 		},
 		{
-			name:    "github ssh",
-			url:     "git@github.com:owner/repo.git",
-			wantSub: "GITHUB_TOKEN not set",
+			name: "github ssh",
+			url:  "git@github.com:owner/repo.git",
 		},
 		{
-			name:    "gitea https",
-			url:     "https://gitea.example.com/owner/repo.git",
-			wantSub: "GITHUB_TOKEN not set",
+			name: "gitea https",
+			url:  "https://gitea.example.com/owner/repo.git",
 		},
 	}
 
@@ -36,13 +32,10 @@ func TestDetectClientFromURL_MissingToken(t *testing.T) {
 			if client != nil {
 				t.Fatalf("expected nil client without token, got %#v", client)
 			}
-			if err == nil {
-				t.Fatal("expected error, got nil")
+			if !errors.Is(err, ErrGitHubTokenNotSet) {
+				t.Fatalf("err = %v, want ErrGitHubTokenNotSet", err)
 			}
-			if !strings.Contains(err.Error(), tt.wantSub) {
-				t.Fatalf("error %q should contain %q", err.Error(), tt.wantSub)
-			}
-			if strings.Contains(err.Error(), "no supported forge") {
+			if errors.Is(err, ErrNoSupportedForge) {
 				t.Fatalf("error should not claim unsupported forge: %v", err)
 			}
 		})
@@ -56,11 +49,8 @@ func TestDetectClientFromURL_UnsupportedRemote(t *testing.T) {
 	if client != nil {
 		t.Fatalf("expected nil client, got %#v", client)
 	}
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !strings.Contains(err.Error(), "no supported forge") {
-		t.Fatalf("want unsupported forge message, got %v", err)
+	if !errors.Is(err, ErrNoSupportedForge) {
+		t.Fatalf("err = %v, want ErrNoSupportedForge", err)
 	}
 }
 
@@ -104,11 +94,8 @@ func TestDetectClientFromURL_OverrideGitHubNoFallthrough(t *testing.T) {
 	if client != nil {
 		t.Fatalf("expected nil client for non-GitHub remote with github override, got %#v", client)
 	}
-	if err == nil {
-		t.Fatal("expected error when github override cannot load the client")
-	}
-	if !strings.Contains(err.Error(), "could not load github client") {
-		t.Fatalf("want exclusive github-override failure, got %v", err)
+	if !errors.Is(err, ErrCouldNotLoadGitHubClient) {
+		t.Fatalf("err = %v, want ErrCouldNotLoadGitHubClient", err)
 	}
 }
 
@@ -119,11 +106,8 @@ func TestDetectClientFromURL_UnsupportedOverride(t *testing.T) {
 	if client != nil {
 		t.Fatalf("expected nil client for unsupported override, got %#v", client)
 	}
-	if err == nil {
-		t.Fatal("expected error for unsupported forge override")
-	}
-	if !strings.Contains(err.Error(), "unsupported forge override") {
-		t.Fatalf("want unsupported-override message, got %v", err)
+	if !errors.Is(err, ErrUnsupportedForgeOverride) {
+		t.Fatalf("err = %v, want ErrUnsupportedForgeOverride", err)
 	}
 }
 
@@ -134,10 +118,7 @@ func TestDetectClientFromURL_OverrideGitHubMissingToken(t *testing.T) {
 	if client != nil {
 		t.Fatalf("expected nil client without token, got %#v", client)
 	}
-	if err == nil {
-		t.Fatal("expected credentials error")
-	}
-	if !strings.Contains(err.Error(), "GITHUB_TOKEN not set") {
-		t.Fatalf("want missing-token message, got %v", err)
+	if !errors.Is(err, ErrGitHubTokenNotSet) {
+		t.Fatalf("err = %v, want ErrGitHubTokenNotSet", err)
 	}
 }
