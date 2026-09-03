@@ -13,18 +13,12 @@ import (
 	"time"
 )
 
-// githubError is a stable GitHub client / remote-parse sentinel. Prefer these
-// (or fmt.Errorf %w wrapping them) over bare fmt.Errorf so callers can errors.Is.
-type githubError string
-
-func (e githubError) Error() string { return string(e) }
-
 // GitHub error table. Dynamic detail is attached with fmt.Errorf %w.
 const (
-	ErrGitHubAPIError          githubError = "github api error"
-	ErrInvalidHTTPSGitHubURL   githubError = "invalid https github url"
-	ErrInvalidSSHGitHubURL     githubError = "invalid ssh github url"
-	ErrUnrecognizedGitHubURL   githubError = "unrecognized github url format"
+	ErrGitHubAPIError        sentinelError = "github api error"
+	ErrInvalidHTTPSGitHubURL sentinelError = "invalid https github url"
+	ErrInvalidSSHGitHubURL   sentinelError = "invalid ssh github url"
+	ErrUnrecognizedGitHubURL sentinelError = "unrecognized github url format"
 )
 
 // GitHubClient implements the ForgeClient interface for GitHub and compatible APIs.
@@ -223,7 +217,7 @@ func ParseGitHubRemote(remoteURL string) (owner, repo string, err error) {
 	// Fallback handling for formats that url.Parse might misinterpret (e.g., SCP-like syntax).
 	fallbackFormats := []struct {
 		prefix string
-		err    githubError
+		err    sentinelError
 	}{
 		{"https://github.com/", ErrInvalidHTTPSGitHubURL},
 		{"git@github.com:", ErrInvalidSSHGitHubURL},

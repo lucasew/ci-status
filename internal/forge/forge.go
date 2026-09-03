@@ -7,6 +7,12 @@ import (
 	"strings"
 )
 
+// sentinelError is the shared string sentinel for detect, generic, and GitHub
+// error tables. Wrap with fmt.Errorf %w so callers can errors.Is.
+type sentinelError string
+
+func (e sentinelError) Error() string { return string(e) }
+
 // normalizeRemoteURL strips trailing "/" and optional ".git" in any order so
 // forms like https://host/o/r.git/ and git@host:o/r.git/ parse the same as
 // without those suffixes. A single TrimSuffix(".git") then TrimSuffix("/")

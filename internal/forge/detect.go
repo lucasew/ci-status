@@ -7,19 +7,13 @@ import (
 	"strings"
 )
 
-// detectError is a stable detection sentinel. Prefer these (or fmt.Errorf %w
-// wrapping them) over bare fmt.Errorf / errors.New so callers can errors.Is.
-type detectError string
-
-func (e detectError) Error() string { return string(e) }
-
 // Detection error table. Dynamic detail is attached with fmt.Errorf %w.
 const (
-	ErrCouldNotLoadGitHubClient detectError = "could not load github client for url"
-	ErrUnsupportedForgeOverride detectError = "unsupported forge override"
-	ErrNoSupportedForge         detectError = "no supported forge detected for url"
-	ErrGitHubTokenNotSet        detectError = "GITHUB_TOKEN not set"
-	ErrNoRemoteURL              detectError = "could not determine remote url for 'origin' or 'upstream'"
+	ErrCouldNotLoadGitHubClient sentinelError = "could not load github client for url"
+	ErrUnsupportedForgeOverride sentinelError = "unsupported forge override"
+	ErrNoSupportedForge         sentinelError = "no supported forge detected for url"
+	ErrGitHubTokenNotSet        sentinelError = "GITHUB_TOKEN not set"
+	ErrNoRemoteURL              sentinelError = "could not determine remote url for 'origin' or 'upstream'"
 )
 
 // DetectClient attempts to identify the appropriate ForgeClient by analyzing the repository's remote URL.

@@ -8,15 +8,9 @@ import (
 	"strings"
 )
 
-// genericError is a stable generic-remote parse sentinel. Prefer these (or
-// fmt.Errorf %w wrapping them) over bare fmt.Errorf so callers can errors.Is.
-type genericError string
-
-func (e genericError) Error() string { return string(e) }
-
 // Generic remote error table. Dynamic detail is attached with fmt.Errorf %w.
 const (
-	ErrCannotParseGenericRemote genericError = "cannot parse generic remote"
+	ErrCannotParseGenericRemote sentinelError = "cannot parse generic remote"
 )
 
 // LoadGeneric is a strategy to initialize a ForgeClient for generic Gitea/Forgejo instances.
