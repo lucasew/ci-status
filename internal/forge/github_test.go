@@ -52,10 +52,10 @@ func TestParseGitHubRemote(t *testing.T) {
 	}
 }
 
-// TestSetStatusMapsRunningToPending ensures StateRunning is never sent to a
-// GitHub-compatible statuses API (including custom BaseURL hosts like Gitea).
-func TestSetStatusMapsRunningToPending(t *testing.T) {
-	var gotState string
+// setStatusTestClient starts an httptest server that captures the JSON POST
+// body into dest and replies 201.
+func setStatusTestClient(t *testing.T, dest *map[string]string) *forge.GitHubClient {
+	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -63,19 +63,25 @@ func TestSetStatusMapsRunningToPending(t *testing.T) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		var payload map[string]string
-		if err := json.Unmarshal(body, &payload); err != nil {
+		if err := json.Unmarshal(body, dest); err != nil {
 			t.Errorf("unmarshal: %v", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		gotState = payload["state"]
 		w.WriteHeader(http.StatusCreated)
 	}))
 	t.Cleanup(srv.Close)
 
 	client := forge.NewGitHubClient("token", "owner", "repo")
 	client.BaseURL = srv.URL
+	return client
+}
+
+// TestSetStatusMapsRunningToPending ensures StateRunning is never sent to a
+// GitHub-compatible statuses API (including custom BaseURL hosts like Gitea).
+func TestSetStatusMapsRunningToPending(t *testing.T) {
+	var got map[string]string
+	client := setStatusTestClient(t, &got)
 
 	err := client.SetStatus(t.Context(), forge.StatusOpts{
 		Commit:      "abc123",
@@ -86,8 +92,8 @@ func TestSetStatusMapsRunningToPending(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SetStatus: %v", err)
 	}
-	if gotState != string(forge.StatePending) {
-		t.Fatalf("expected state %q, got %q", forge.StatePending, gotState)
+	if got["state"] != string(forge.StatePending) {
+		t.Fatalf("expected state %q, got %q", forge.StatePending, got["state"])
 	}
 }
 
@@ -95,27 +101,10 @@ func TestSetStatusMapsRunningToPending(t *testing.T) {
 // GitHub's 140/100 character limits (API returns 422 otherwise).
 func TestSetStatusTruncatesLongFields(t *testing.T) {
 	var got map[string]string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			t.Errorf("read body: %v", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if err := json.Unmarshal(body, &got); err != nil {
-			t.Errorf("unmarshal: %v", err)
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		w.WriteHeader(http.StatusCreated)
-	}))
-	t.Cleanup(srv.Close)
+	client := setStatusTestClient(t, &got)
 
 	longDesc := strings.Repeat("d", 200)
 	longCtx := strings.Repeat("c", 150)
-
-	client := forge.NewGitHubClient("token", "owner", "repo")
-	client.BaseURL = srv.URL
 
 	err := client.SetStatus(t.Context(), forge.StatusOpts{
 		Commit:      "abc123",
@@ -145,24 +134,7 @@ func TestSetStatusTruncatesLongFields(t *testing.T) {
 
 func TestSetStatusKeepsShortFields(t *testing.T) {
 	var got map[string]string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			t.Errorf("read body: %v", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if err := json.Unmarshal(body, &got); err != nil {
-			t.Errorf("unmarshal: %v", err)
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		w.WriteHeader(http.StatusCreated)
-	}))
-	t.Cleanup(srv.Close)
-
-	client := forge.NewGitHubClient("token", "owner", "repo")
-	client.BaseURL = srv.URL
+	client := setStatusTestClient(t, &got)
 
 	err := client.SetStatus(t.Context(), forge.StatusOpts{
 		Commit:      "abc123",
