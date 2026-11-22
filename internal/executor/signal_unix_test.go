@@ -3,12 +3,9 @@
 package executor_test
 
 import (
-	"bytes"
 	"errors"
+	"fmt"
 	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -32,20 +29,14 @@ func TestSIGHUPKillsProcessGroup(t *testing.T) {
 
 func assertSignalKillsProcessGroup(t *testing.T, sig syscall.Signal) {
 	t.Helper()
-	dir := t.TempDir()
-	pidFile := filepath.Join(dir, "child.pid")
-
-	script := `sleep 60 & echo $! >"$1"; wait`
-	e := executor.New()
-	e.Stdout = &bytes.Buffer{}
-	e.Stderr = &bytes.Buffer{}
+	e, pidFile := grandchildSleepHarness(t)
 
 	done := make(chan struct {
 		code int
 		err  error
 	}, 1)
 	go func() {
-		code, err := e.Run(t.Context(), 0, "sh", []string{"-c", script, "sh", pidFile})
+		code, err := e.Run(t.Context(), 0, "sh", []string{"-c", grandchildSleepScript, "sh", pidFile})
 		done <- struct {
 			code int
 			err  error
@@ -53,22 +44,7 @@ func assertSignalKillsProcessGroup(t *testing.T, sig syscall.Signal) {
 	}()
 
 	// Wait until the grandchild pid is known, then signal this process.
-	deadline := time.Now().Add(3 * time.Second)
-	var childPID int
-	for {
-		data, readErr := os.ReadFile(pidFile)
-		if readErr == nil {
-			pid, convErr := strconv.Atoi(strings.TrimSpace(string(data)))
-			if convErr == nil && pid > 0 {
-				childPID = pid
-				break
-			}
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("child pid file never written: %v", readErr)
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	childPID := waitForGrandchildPID(t, pidFile, 3*time.Second)
 
 	if err := syscall.Kill(os.Getpid(), sig); err != nil {
 		t.Fatalf("send %v: %v", sig, err)
@@ -89,15 +65,5 @@ func assertSignalKillsProcessGroup(t *testing.T, sig syscall.Signal) {
 		t.Fatalf("Run did not return after %v", sig)
 	}
 
-	deadline = time.Now().Add(2 * time.Second)
-	for {
-		err := syscall.Kill(childPID, 0)
-		if err != nil {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("grandchild sleep (pid %d) still alive after %v cancel", childPID, sig)
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
+	waitUntilGrandchildGone(t, childPID, fmt.Sprintf("%v cancel", sig))
 }
